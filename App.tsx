@@ -1,8 +1,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { CategoryType, Cause, AnalysisMethod, ChecklistItem } from './types';
+import { CategoryType, Cause, AnalysisMethod, ChecklistItem, DelayStep } from './types';
 import { FishboneDiagram } from './components/FishboneDiagram';
 import { FiveWhysAnalysis } from './components/FiveWhysAnalysis';
+import { DelayPathAnalysis } from './components/DelayPathAnalysis';
 import { CauseCard } from './components/CauseCard';
 import { SummaryTable } from './components/SummaryTable';
 import { TroubleshootingChecklist } from './components/TroubleshootingChecklist';
@@ -23,6 +24,9 @@ const App: React.FC = () => {
   
   // 5 Whys State
   const [fiveWhys, setFiveWhys] = useState<string[]>(['', '', '', '', '']);
+
+  // Delay Path State
+  const [delaySteps, setDelaySteps] = useState<DelayStep[]>([]);
   
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -92,6 +96,7 @@ const App: React.FC = () => {
     if (confirm("Are you sure you want to clear your current analysis?")) {
       setCauses([]);
       setFiveWhys(['', '', '', '', '']);
+      setDelaySteps([]);
       setProblem('');
       setChecklist([]);
     }
@@ -104,7 +109,8 @@ const App: React.FC = () => {
       causes,
       fiveWhys,
       checklist,
-      version: "1.2",
+      delaySteps,
+      version: "1.3",
       timestamp: new Date().toISOString()
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -169,6 +175,7 @@ const App: React.FC = () => {
         if (data.causes) setCauses(data.causes);
         if (data.fiveWhys) setFiveWhys(data.fiveWhys);
         if (data.checklist) setChecklist(data.checklist);
+        if (data.delaySteps) setDelaySteps(data.delaySteps);
       } catch (error) {
         alert("Invalid project file.");
       }
@@ -217,18 +224,24 @@ const App: React.FC = () => {
 
           <div className="mb-6">
             <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Analysis Method</label>
-            <div className="grid grid-cols-2 gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+            <div className="grid grid-cols-3 gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
               <button
                 onClick={() => setMethod(AnalysisMethod.FISHBONE)}
-                className={`py-2 px-3 text-[10px] font-bold uppercase rounded-lg transition-all ${method === AnalysisMethod.FISHBONE ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+                className={`py-2 px-1 text-[9px] font-bold uppercase rounded-lg transition-all ${method === AnalysisMethod.FISHBONE ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
               >
                 Fishbone
               </button>
               <button
                 onClick={() => setMethod(AnalysisMethod.FIVE_WHYS)}
-                className={`py-2 px-3 text-[10px] font-bold uppercase rounded-lg transition-all ${method === AnalysisMethod.FIVE_WHYS ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+                className={`py-2 px-1 text-[9px] font-bold uppercase rounded-lg transition-all ${method === AnalysisMethod.FIVE_WHYS ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
               >
                 5 Whys
+              </button>
+              <button
+                onClick={() => setMethod(AnalysisMethod.DELAY_PATH)}
+                className={`py-2 px-1 text-[9px] font-bold uppercase rounded-lg transition-all ${method === AnalysisMethod.DELAY_PATH ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-300 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+              >
+                Time Delay
               </button>
             </div>
           </div>
@@ -296,7 +309,7 @@ const App: React.FC = () => {
                 )}
               </div>
             </div>
-          ) : (
+          ) : method === AnalysisMethod.FIVE_WHYS ? (
              <div className="mb-8">
                 <div className="flex items-center justify-between mb-4">
                   <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Drill Down</label>
@@ -310,6 +323,21 @@ const App: React.FC = () => {
                   </button>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 italic leading-relaxed">Systematically ask "Why?" to drill down.</p>
+             </div>
+          ) : (
+            <div className="mb-8">
+                <div className="flex items-center justify-between mb-4">
+                  <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Path Log</label>
+                  <button 
+                    disabled={true}
+                    title="AI integration possible."
+                    className="text-[10px] font-bold text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-60 flex items-center gap-1 uppercase tracking-wider transition-all"
+                  >
+                    <i className="fa-solid fa-wand-magic-sparkles"></i>
+                    Gemini Suggest
+                  </button>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 italic leading-relaxed">Map the sequence of events and time delays to find the bottlenecks.</p>
              </div>
           )}
         </div>
@@ -332,7 +360,7 @@ const App: React.FC = () => {
         <header className="no-print h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 shrink-0">
           <div className="flex items-center gap-4 ml-10">
             <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">
-              {method === AnalysisMethod.FISHBONE ? 'Fishbone Analysis' : 'Root Cause Drill-down'}
+              {method === AnalysisMethod.FISHBONE ? 'Fishbone Analysis' : method === AnalysisMethod.FIVE_WHYS ? 'Root Cause Drill-down' : 'Time Delay Pathway'}
             </span>
             {causes.some(c => c.isWorkingOn) && (
               <div className="bg-amber-50 dark:bg-amber-900/30 px-3 py-1 rounded-full border border-amber-200 dark:border-amber-800 flex items-center gap-2">
@@ -378,7 +406,7 @@ const App: React.FC = () => {
             <div className="mb-6 flex justify-between items-end print:mb-4">
               <div>
                 <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-tight print:text-black">
-                  {method === AnalysisMethod.FISHBONE ? 'Ishikawa Visualization' : 'Multi-Level Why Analysis'}
+                  {method === AnalysisMethod.FISHBONE ? 'Ishikawa Visualization' : method === AnalysisMethod.FIVE_WHYS ? 'Multi-Level Why Analysis' : 'Pathway Latency Mapping'}
                 </h2>
                 <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 print:text-slate-600">
                   {problem || "Root Cause Analysis"}
@@ -419,13 +447,21 @@ const App: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              ) : (
+              ) : method === AnalysisMethod.FIVE_WHYS ? (
                 <div className="print:block">
                   <FiveWhysAnalysis 
                     whys={fiveWhys} 
                     onChange={handleWhyChange} 
                     onAdd={addWhyStep}
                     onRemove={removeWhyStep}
+                    problem={problem}
+                  />
+                </div>
+              ) : (
+                <div className="print:block">
+                  <DelayPathAnalysis
+                    steps={delaySteps}
+                    onUpdate={setDelaySteps}
                     problem={problem}
                   />
                 </div>
@@ -440,7 +476,9 @@ const App: React.FC = () => {
               <div>
                 <h4 className="font-semibold text-slate-800 dark:text-slate-200 text-sm">Workflow Tip</h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                  Toggle the investigation icon <i className="fa-solid fa-wrench"></i> on any cause to mark it as your current focus. 
+                  {method === AnalysisMethod.DELAY_PATH 
+                    ? "Add points in chronological order. The accumulated delay helps you see how small hiccups turn into major bottlenecks."
+                    : "Toggle the investigation icon on any cause to mark it as your current focus."}
                 </p>
               </div>
             </div>

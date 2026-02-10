@@ -10,7 +10,8 @@ export enum CategoryType {
 
 export enum AnalysisMethod {
   FISHBONE = 'fishbone',
-  FIVE_WHYS = 'five_wh_ys'
+  FIVE_WHYS = 'five_wh_ys',
+  DELAY_PATH = 'delay_path'
 }
 
 export interface Cause {
@@ -26,10 +27,18 @@ export interface ChecklistItem {
   completed: boolean;
 }
 
+export interface DelayStep {
+  id: string;
+  description: string;
+  duration: number;
+  unit: 'mins' | 'hours' | 'days';
+}
+
 export interface FishboneData {
   problem: string;
   causes: Cause[];
   checklist: ChecklistItem[];
+  delaySteps: DelayStep[];
 }
 
 export interface SuggestionResponse {
