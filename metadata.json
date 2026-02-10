@@ -1,0 +1,5 @@
+{
+  "name": "Fishbone Pro: Analytical Root Cause Mapper",
+  "description": "A professional tool for Fishbone (Ishikawa) analysis featuring a drag-and-drop interface, real-time visualization, and AI-powered cause suggestions using Gemini.",
+  "requestFramePermissions": []
+}
