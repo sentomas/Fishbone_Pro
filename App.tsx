@@ -1,10 +1,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { CategoryType, Cause, AnalysisMethod } from './types';
+import { CategoryType, Cause, AnalysisMethod, ChecklistItem } from './types';
 import { FishboneDiagram } from './components/FishboneDiagram';
 import { FiveWhysAnalysis } from './components/FiveWhysAnalysis';
 import { CauseCard } from './components/CauseCard';
 import { SummaryTable } from './components/SummaryTable';
+import { TroubleshootingChecklist } from './components/TroubleshootingChecklist';
 
 const App: React.FC = () => {
   const [problem, setProblem] = useState<string>('');
@@ -16,6 +17,9 @@ const App: React.FC = () => {
   // Fishbone State
   const [causes, setCauses] = useState<Cause[]>([]);
   const [newCauseText, setNewCauseText] = useState<string>('');
+  
+  // Checklist State
+  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   
   // 5 Whys State
   const [fiveWhys, setFiveWhys] = useState<string[]>(['', '', '', '', '']);
@@ -42,6 +46,7 @@ const App: React.FC = () => {
       id: Math.random().toString(36).substr(2, 9),
       text: text.trim(),
       category: category,
+      isWorkingOn: false
     };
     setCauses(prev => [...prev, newCause]);
   };
@@ -64,6 +69,10 @@ const App: React.FC = () => {
     setCauses(prev => prev.map(c => c.id === causeId ? { ...c, category } : c));
   };
 
+  const toggleWorkingOn = (id: string) => {
+    setCauses(prev => prev.map(c => c.id === id ? { ...c, isWorkingOn: !c.isWorkingOn } : c));
+  };
+
   const handleWhyChange = (index: number, value: string) => {
     const updated = [...fiveWhys];
     updated[index] = value;
@@ -84,6 +93,7 @@ const App: React.FC = () => {
       setCauses([]);
       setFiveWhys(['', '', '', '', '']);
       setProblem('');
+      setChecklist([]);
     }
   };
 
@@ -93,14 +103,16 @@ const App: React.FC = () => {
       method,
       causes,
       fiveWhys,
-      version: "1.1",
+      checklist,
+      version: "1.2",
       timestamp: new Date().toISOString()
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `Analysis_${problem.slice(0, 20).replace(/\s+/g, '_') || 'Project'}.json`;
+    const safeProblem = problem.slice(0, 20).replace(/\s+/g, '_') || 'Project';
+    link.download = `FishbonePro_${safeProblem}.json`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -120,7 +132,6 @@ const App: React.FC = () => {
     const canvas = document.createElement('canvas');
     const img = new Image();
     
-    // Set a high resolution for the export
     const scale = 2; 
     canvas.width = 1000 * scale;
     canvas.height = 650 * scale;
@@ -129,7 +140,6 @@ const App: React.FC = () => {
     if (!ctx) return;
 
     img.onload = () => {
-      // Fill background based on theme
       ctx.fillStyle = theme === 'dark' ? '#0f172a' : '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -137,7 +147,8 @@ const App: React.FC = () => {
       const pngUrl = canvas.toDataURL('image/png');
       const downloadLink = document.createElement('a');
       downloadLink.href = pngUrl;
-      downloadLink.download = `Fishbone_${problem.slice(0, 20).replace(/\s+/g, '_') || 'Diagram'}.png`;
+      const safeProblem = problem.slice(0, 20).replace(/\s+/g, '_') || 'Diagram';
+      downloadLink.download = `FishbonePro_${safeProblem}.png`;
       downloadLink.click();
       URL.revokeObjectURL(url);
     };
@@ -157,12 +168,29 @@ const App: React.FC = () => {
         if (data.method) setMethod(data.method);
         if (data.causes) setCauses(data.causes);
         if (data.fiveWhys) setFiveWhys(data.fiveWhys);
+        if (data.checklist) setChecklist(data.checklist);
       } catch (error) {
         alert("Invalid project file.");
       }
     };
     reader.readAsText(file);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const importFromCauses = () => {
+    const workingCauses = causes.filter(c => c.isWorkingOn);
+    if (workingCauses.length === 0) {
+      alert("No causes marked as 'Working On'. Toggle the investigation status on causes first.");
+      return;
+    }
+    
+    const newItems: ChecklistItem[] = workingCauses.map(c => ({
+      id: Math.random().toString(36).substr(2, 9),
+      text: `Verify: ${c.text}`,
+      completed: false
+    }));
+    
+    setChecklist(prev => [...prev, ...newItems]);
   };
 
   const unassignedCauses = causes.filter(c => !c.category);
@@ -221,7 +249,7 @@ const App: React.FC = () => {
                 <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Input Causes</label>
                 <button 
                   disabled={true}
-                  title="AI integration possible, please write to serin.thomas@outlook.com for information."
+                  title="AI integration possible."
                   className="text-[10px] font-bold text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-60 flex items-center gap-1 uppercase tracking-wider transition-all"
                 >
                   <i className="fa-solid fa-wand-magic-sparkles"></i>
@@ -262,6 +290,7 @@ const App: React.FC = () => {
                       cause={cause} 
                       onDelete={deleteCause} 
                       onEdit={(newText) => updateCauseText(cause.id, newText)}
+                      onToggleWorkingOn={toggleWorkingOn}
                     />
                   ))
                 )}
@@ -273,14 +302,14 @@ const App: React.FC = () => {
                   <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Drill Down</label>
                   <button 
                     disabled={true}
-                    title="AI integration possible, please write to serin.thomas@outlook.com for information."
+                    title="AI integration possible."
                     className="text-[10px] font-bold text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-60 flex items-center gap-1 uppercase tracking-wider transition-all"
                   >
                     <i className="fa-solid fa-wand-magic-sparkles"></i>
                     AI Brainstorm
                   </button>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 italic leading-relaxed">Systematically ask "Why?" to drill down. You can add more steps if the root cause isn't reached after 5 whys.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 italic leading-relaxed">Systematically ask "Why?" to drill down.</p>
              </div>
           )}
         </div>
@@ -305,19 +334,26 @@ const App: React.FC = () => {
             <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">
               {method === AnalysisMethod.FISHBONE ? 'Fishbone Analysis' : 'Root Cause Drill-down'}
             </span>
+            {causes.some(c => c.isWorkingOn) && (
+              <div className="bg-amber-50 dark:bg-amber-900/30 px-3 py-1 rounded-full border border-amber-200 dark:border-amber-800 flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                </span>
+                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-widest">Active Investigation In Progress</span>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
              <button 
                 onClick={toggleTheme}
                 className="w-10 h-10 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
-                title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
               >
                 <i className={`fa-solid ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
               </button>
              <button 
                 onClick={() => fileInputRef.current?.click()}
                 className="text-xs font-semibold px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all flex items-center gap-2"
-                title="Import project from JSON"
               >
                 <i className="fa-solid fa-file-import"></i>
                 <span className="hidden md:inline">Import</span>
@@ -325,32 +361,29 @@ const App: React.FC = () => {
              <button 
                 onClick={exportProject}
                 className="text-xs font-semibold px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all flex items-center gap-2"
-                title="Save project as JSON"
               >
                 <i className="fa-solid fa-floppy-disk"></i>
-                <span className="hidden md:inline">Save Project</span>
+                <span className="hidden md:inline">Save</span>
               </button>
              {method === AnalysisMethod.FISHBONE && (
                <button 
                   onClick={exportImage}
                   className="text-xs font-semibold px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all flex items-center gap-2"
-                  title="Export diagram as PNG"
                 >
                   <i className="fa-solid fa-image"></i>
-                  <span className="hidden md:inline">Export Image</span>
+                  <span className="hidden md:inline">Export</span>
                 </button>
              )}
              <button 
                 onClick={() => window.print()} 
                 className="text-xs font-semibold px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all flex items-center gap-2"
-                title="Print or Save as PDF"
               >
                 <i className="fa-solid fa-print"></i>
                 <span className="hidden md:inline">Print</span>
               </button>
              <button 
                 onClick={resetAnalysis}
-                className="text-xs font-semibold px-4 py-2 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-400 shadow-sm shadow-indigo-200 dark:shadow-none transition-all"
+                className="text-xs font-semibold px-4 py-2 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-400 shadow-sm transition-all"
               >
                 Reset
               </button>
@@ -359,18 +392,20 @@ const App: React.FC = () => {
 
         <div className="flex-1 p-8 flex flex-col overflow-y-auto">
           <div className="max-w-5xl mx-auto w-full flex-1 flex flex-col pb-20">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">
-                {method === AnalysisMethod.FISHBONE ? 'Ishikawa Visualization' : 'Multi-Level Why Analysis'}
-              </h2>
-              <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-                {method === AnalysisMethod.FISHBONE 
-                  ? 'Drag causes from the sidebar or move existing ones between categories.' 
-                  : 'Start from the problem and ask "Why?" repeatedly. Click the + button to add more levels.'}
-              </p>
+            <div className="mb-6 flex justify-between items-end">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">
+                  {method === AnalysisMethod.FISHBONE ? 'Ishikawa Visualization' : 'Multi-Level Why Analysis'}
+                </h2>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+                  {method === AnalysisMethod.FISHBONE 
+                    ? 'Drag causes or toggle investigation status to focus your analysis.' 
+                    : 'Start from the problem and ask "Why?" repeatedly.'}
+                </p>
+              </div>
             </div>
 
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 flex flex-col gap-12">
               {method === AnalysisMethod.FISHBONE ? (
                 <>
                   <FishboneDiagram 
@@ -379,14 +414,26 @@ const App: React.FC = () => {
                     onDrop={assignCategory} 
                     onDeleteCause={deleteCause}
                     onEditCause={updateCauseText}
+                    onToggleWorkingOn={toggleWorkingOn}
                     theme={theme}
                   />
-                  <div className="mt-12">
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2">
-                      <i className="fa-solid fa-table-list text-indigo-500 dark:text-indigo-400"></i>
-                      Consolidated Summary
-                    </h3>
-                    <SummaryTable causes={causes} />
+                  
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2">
+                        <i className="fa-solid fa-table-list text-indigo-500"></i>
+                        Cause Summary
+                      </h3>
+                      <SummaryTable causes={causes} />
+                    </div>
+                    
+                    <div>
+                      <TroubleshootingChecklist 
+                        items={checklist} 
+                        onUpdate={setChecklist} 
+                        onImportFromCauses={importFromCauses}
+                      />
+                    </div>
                   </div>
                 </>
               ) : (
@@ -401,16 +448,15 @@ const App: React.FC = () => {
             </div>
 
             {/* Hint Box */}
-            <div className="no-print mt-8 p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm flex items-start gap-4">
+            <div className="no-print mt-12 p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm flex items-start gap-4">
               <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center text-indigo-500 dark:text-indigo-400 shrink-0">
                 <i className="fa-solid fa-lightbulb"></i>
               </div>
               <div>
-                <h4 className="font-semibold text-slate-800 dark:text-slate-200 text-sm">Pro Tip</h4>
+                <h4 className="font-semibold text-slate-800 dark:text-slate-200 text-sm">Workflow Tip</h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                  {method === AnalysisMethod.FISHBONE 
-                    ? "The summary table below the diagram provides a clean tabular view of your findings. You can edit any cause directly on the diagram."
-                    : "If you haven't reached the root cause after 5 levels, keep going. Each level should represent a direct causal relationship to the level above it."}
+                  Toggle the investigation icon <i className="fa-solid fa-wrench"></i> on any cause to mark it as your current focus. 
+                  Then use the "Sync" button in the checklist to automatically generate verification tasks.
                 </p>
               </div>
             </div>

@@ -10,18 +10,26 @@ export enum CategoryType {
 
 export enum AnalysisMethod {
   FISHBONE = 'fishbone',
-  FIVE_WHYS = 'five_whys'
+  FIVE_WHYS = 'five_wh_ys'
 }
 
 export interface Cause {
   id: string;
   text: string;
   category: CategoryType | null;
+  isWorkingOn?: boolean;
+}
+
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  completed: boolean;
 }
 
 export interface FishboneData {
   problem: string;
   causes: Cause[];
+  checklist: ChecklistItem[];
 }
 
 export interface SuggestionResponse {

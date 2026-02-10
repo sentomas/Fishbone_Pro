@@ -6,9 +6,10 @@ interface CauseCardProps {
   cause: Cause;
   onDelete: (id: string) => void;
   onEdit: (newText: string) => void;
+  onToggleWorkingOn?: (id: string) => void;
 }
 
-export const CauseCard: React.FC<CauseCardProps> = ({ cause, onDelete, onEdit }) => {
+export const CauseCard: React.FC<CauseCardProps> = ({ cause, onDelete, onEdit, onToggleWorkingOn }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(cause.text);
 
@@ -27,7 +28,13 @@ export const CauseCard: React.FC<CauseCardProps> = ({ cause, onDelete, onEdit })
     <div
       draggable={!isEditing}
       onDragStart={handleDragStart}
-      className={`bg-white dark:bg-slate-800 border ${isEditing ? 'border-indigo-400 ring-2 ring-indigo-50 dark:ring-indigo-900/30' : 'border-slate-200 dark:border-slate-700'} rounded-lg p-3 mb-2 shadow-sm transition-all group relative ${!isEditing ? 'cursor-grab active:cursor-grabbing hover:border-indigo-300 dark:hover:border-indigo-600' : ''}`}
+      className={`bg-white dark:bg-slate-800 border ${
+        isEditing 
+          ? 'border-indigo-400 ring-2 ring-indigo-50 dark:ring-indigo-900/30' 
+          : cause.isWorkingOn 
+            ? 'border-amber-400 ring-2 ring-amber-100 dark:ring-amber-900/40' 
+            : 'border-slate-200 dark:border-slate-700'
+      } rounded-lg p-3 mb-2 shadow-sm transition-all group relative ${!isEditing ? 'cursor-grab active:cursor-grabbing hover:border-indigo-300 dark:hover:border-indigo-600' : ''}`}
     >
       <div className="flex justify-between items-start gap-2">
         {isEditing ? (
@@ -62,8 +69,17 @@ export const CauseCard: React.FC<CauseCardProps> = ({ cause, onDelete, onEdit })
           </div>
         ) : (
           <>
-            <span className="text-sm text-slate-700 dark:text-slate-300 font-medium leading-tight">{cause.text}</span>
+            <div className="flex-1">
+              <span className="text-sm text-slate-700 dark:text-slate-300 font-medium leading-tight">{cause.text}</span>
+            </div>
             <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={() => onToggleWorkingOn?.(cause.id)}
+                className={`p-1 rounded transition-colors ${cause.isWorkingOn ? 'text-amber-500 bg-amber-50 dark:bg-amber-900/30' : 'text-slate-400 dark:text-slate-500 hover:text-amber-500'}`}
+                title={cause.isWorkingOn ? "Unmark Active Focus" : "Mark as Active Focus"}
+              >
+                <i className="fa-solid fa-wrench text-[10px]"></i>
+              </button>
               <button
                 onClick={() => setIsEditing(true)}
                 className="text-slate-400 dark:text-slate-500 hover:text-indigo-500 dark:hover:text-indigo-400 p-1"
@@ -82,9 +98,18 @@ export const CauseCard: React.FC<CauseCardProps> = ({ cause, onDelete, onEdit })
           </>
         )}
       </div>
-      {!isEditing && cause.category && (
-        <div className="mt-2 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">
-          {cause.category}
+      {!isEditing && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {cause.category && (
+            <div className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">
+              {cause.category}
+            </div>
+          )}
+          {cause.isWorkingOn && (
+            <div className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 animate-pulse">
+              Working On
+            </div>
+          )}
         </div>
       )}
     </div>

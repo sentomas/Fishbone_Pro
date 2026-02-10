@@ -8,11 +8,12 @@ interface FishboneDiagramProps {
   onDrop: (causeId: string, category: CategoryType) => void;
   onDeleteCause: (id: string) => void;
   onEditCause: (id: string, newText: string) => void;
+  onToggleWorkingOn?: (id: string) => void;
   theme: 'light' | 'dark';
 }
 
 export const FishboneDiagram: React.FC<FishboneDiagramProps> = ({ 
-  problem, causes, onDrop, onDeleteCause, onEditCause, theme
+  problem, causes, onDrop, onDeleteCause, onEditCause, onToggleWorkingOn, theme
 }) => {
   const [activeDropZone, setActiveDropZone] = useState<CategoryType | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -133,7 +134,13 @@ export const FishboneDiagram: React.FC<FishboneDiagramProps> = ({
                         key={cause.id}
                         draggable={editingId !== cause.id}
                         onDragStart={(e) => handleInternalDragStart(e, cause.id)}
-                        className={`bg-white dark:bg-slate-800 border ${editingId === cause.id ? 'border-indigo-400 ring-1 ring-indigo-200 dark:ring-indigo-900' : 'border-slate-200 dark:border-slate-700'} rounded-md p-2 text-[10px] text-slate-700 dark:text-slate-300 leading-tight shadow-sm transition-all border-l-4 border-l-indigo-400 dark:border-l-indigo-600 group relative ${editingId !== cause.id ? 'cursor-grab hover:bg-indigo-50 dark:hover:bg-slate-700' : ''}`}
+                        className={`bg-white dark:bg-slate-800 border ${
+                          editingId === cause.id 
+                            ? 'border-indigo-400 ring-1 ring-indigo-200 dark:ring-indigo-900' 
+                            : cause.isWorkingOn
+                              ? 'border-amber-400 ring-1 ring-amber-100 dark:ring-amber-900/30'
+                              : 'border-slate-200 dark:border-slate-700'
+                        } rounded-md p-2 text-[10px] text-slate-700 dark:text-slate-300 leading-tight shadow-sm transition-all border-l-4 ${cause.isWorkingOn ? 'border-l-amber-500' : 'border-l-indigo-400 dark:border-l-indigo-600'} group relative ${editingId !== cause.id ? 'cursor-grab hover:bg-indigo-50 dark:hover:bg-slate-700' : ''}`}
                       >
                         {editingId === cause.id ? (
                           <div className="flex flex-col gap-1">
@@ -153,6 +160,13 @@ export const FishboneDiagram: React.FC<FishboneDiagramProps> = ({
                             {cause.text}
                             <div className="absolute -top-2 -right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10 no-print">
                               <button 
+                                onClick={() => onToggleWorkingOn?.(cause.id)}
+                                className={`rounded-full shadow-md w-5 h-5 flex items-center justify-center border transition-colors ${cause.isWorkingOn ? 'bg-amber-500 text-white border-amber-600' : 'bg-white dark:bg-slate-700 text-amber-500 border-amber-100 dark:border-slate-600 hover:bg-amber-50'}`}
+                                title={cause.isWorkingOn ? "Stop Investigating" : "Mark as Investigation Focus"}
+                              >
+                                <i className="fa-solid fa-wrench text-[8px]"></i>
+                              </button>
+                              <button 
                                 onClick={() => startEditing(cause)}
                                 className="bg-white dark:bg-slate-700 rounded-full shadow-md text-indigo-500 w-5 h-5 flex items-center justify-center border border-indigo-100 dark:border-slate-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
                               >
@@ -165,6 +179,14 @@ export const FishboneDiagram: React.FC<FishboneDiagramProps> = ({
                                 <i className="fa-solid fa-xmark text-[9px]"></i>
                               </button>
                             </div>
+                            {cause.isWorkingOn && (
+                              <div className="absolute -bottom-1 -right-1">
+                                <span className="flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                                </span>
+                              </div>
+                            )}
                           </>
                         )}
                       </div>
