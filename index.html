@@ -7,6 +7,9 @@
   <title>Fishbone Pro</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
+    // Define process object for environments that don't provide it natively
+    window.process = window.process || { env: {} };
+    
     tailwind.config = {
       darkMode: 'class',
       theme: {
@@ -58,5 +61,7 @@
 </head>
 <body class="bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
   <div id="root"></div>
+  <!-- Explicitly load the entry point -->
+  <script type="module" src="index.tsx"></script>
 </body>
 </html>

@@ -2,11 +2,12 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { CategoryType } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export async function suggestCauses(problem: string) {
   if (!problem) return [];
 
+  // Create a new instance right before the call as per guidelines
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Suggest 6 potential root causes for this problem statement using the Fishbone (Ishikawa) method: "${problem}". 
@@ -44,6 +45,9 @@ export async function suggestCauses(problem: string) {
 
 export async function suggestFiveWhys(problem: string) {
   if (!problem) return [];
+
+  // Create a new instance right before the call as per guidelines
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",

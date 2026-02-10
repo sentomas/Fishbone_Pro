@@ -82,28 +82,8 @@ const App: React.FC = () => {
   };
 
   const handleAIAssist = async () => {
-    if (!problem) {
-      alert("Please enter a problem statement first.");
-      return;
-    }
-    setIsSuggesting(true);
-    try {
-      if (method === AnalysisMethod.FISHBONE) {
-        const suggestions = await suggestCauses(problem);
-        suggestions.forEach((s: any) => {
-          addCause(s.reason, s.category);
-        });
-      } else {
-        const steps = await suggestFiveWhys(problem);
-        if (steps && steps.length > 0) {
-          setFiveWhys(steps);
-        }
-      }
-    } catch (error) {
-      console.error("AI Assistant Error:", error);
-    } finally {
-      setIsSuggesting(false);
-    }
+    // Feature disabled per user request
+    return;
   };
 
   const resetAnalysis = () => {
@@ -247,11 +227,11 @@ const App: React.FC = () => {
               <div className="flex items-center justify-between mb-4">
                 <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Input Causes</label>
                 <button 
-                  onClick={handleAIAssist}
-                  disabled={isSuggesting || !problem}
-                  className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 disabled:text-slate-300 dark:disabled:text-slate-700 flex items-center gap-1 uppercase tracking-wider"
+                  disabled={true}
+                  title="AI integration possible, please write to serin.thomas@outlook.com for information."
+                  className="text-[10px] font-bold text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-60 flex items-center gap-1 uppercase tracking-wider transition-all"
                 >
-                  {isSuggesting ? <i className="fa-solid fa-circle-notch animate-spin"></i> : <i className="fa-solid fa-wand-magic-sparkles"></i>}
+                  <i className="fa-solid fa-wand-magic-sparkles"></i>
                   AI Suggest
                 </button>
               </div>
@@ -299,11 +279,11 @@ const App: React.FC = () => {
                 <div className="flex items-center justify-between mb-4">
                   <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Drill Down</label>
                   <button 
-                    onClick={handleAIAssist}
-                    disabled={isSuggesting || !problem}
-                    className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 disabled:text-slate-300 dark:disabled:text-slate-700 flex items-center gap-1 uppercase tracking-wider"
+                    disabled={true}
+                    title="AI integration possible, please write to serin.thomas@outlook.com for information."
+                    className="text-[10px] font-bold text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-60 flex items-center gap-1 uppercase tracking-wider transition-all"
                   >
-                    {isSuggesting ? <i className="fa-solid fa-circle-notch animate-spin"></i> : <i className="fa-solid fa-wand-magic-sparkles"></i>}
+                    <i className="fa-solid fa-wand-magic-sparkles"></i>
                     AI Brainstorm
                   </button>
                 </div>
