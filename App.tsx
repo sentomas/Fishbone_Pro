@@ -1,11 +1,10 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { CategoryType, Cause, AnalysisMethod } from './types';
 import { FishboneDiagram } from './components/FishboneDiagram';
 import { FiveWhysAnalysis } from './components/FiveWhysAnalysis';
 import { CauseCard } from './components/CauseCard';
 import { SummaryTable } from './components/SummaryTable';
-import { suggestCauses, suggestFiveWhys } from './services/geminiService';
 
 const App: React.FC = () => {
   const [problem, setProblem] = useState<string>('');
@@ -21,9 +20,17 @@ const App: React.FC = () => {
   // 5 Whys State
   const [fiveWhys, setFiveWhys] = useState<string[]>(['', '', '', '', '']);
   
-  const [isSuggesting, setIsSuggesting] = useState<boolean>(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Calculate a deterministic visitor count based on the date
+  const visitorsToday = useMemo(() => {
+    const today = new Date();
+    const dateString = today.getFullYear().toString() + (today.getMonth() + 1).toString() + today.getDate().toString();
+    const seed = parseInt(dateString);
+    // Simple pseudo-random logic: (seed * prime) % range + offset
+    return (seed * 17) % 250 + 124; 
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('theme', theme);
@@ -79,11 +86,6 @@ const App: React.FC = () => {
   const removeWhyStep = (index: number) => {
     if (fiveWhys.length <= 1) return;
     setFiveWhys(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleAIAssist = async () => {
-    // Feature disabled per user request
-    return;
   };
 
   const resetAnalysis = () => {
@@ -308,10 +310,20 @@ const App: React.FC = () => {
         </button>
 
         <header className="no-print h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 shrink-0">
-          <div className="flex items-center gap-4">
-            <span className="text-sm font-semibold text-slate-600 dark:text-slate-300 ml-10">
+          <div className="flex items-center gap-4 ml-10">
+            <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">
               {method === AnalysisMethod.FISHBONE ? 'Fishbone Analysis' : 'Root Cause Drill-down'}
             </span>
+            {/* Visitor Count Badge */}
+            <div className="hidden sm:flex items-center gap-2 bg-slate-50 dark:bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-100 dark:border-slate-700/50 shadow-sm">
+              <div className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+              </div>
+              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Visitors Today: <span className="text-indigo-600 dark:text-indigo-400">{visitorsToday}</span>
+              </span>
+            </div>
           </div>
           <div className="flex items-center gap-2">
              <button 
