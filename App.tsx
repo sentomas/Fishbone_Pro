@@ -343,7 +343,7 @@ const App: React.FC = () => {
         </div>
 
         <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 dark:text-slate-600 text-center">
-          <p>© 2024 serinthomas.co.in</p>
+          <p>© 2026 serinthomas.co.in</p>
         </div>
       </aside>
 
