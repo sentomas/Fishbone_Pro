@@ -35,16 +35,103 @@
       scrollbar-width: none;
     }
     @media print {
+      @page {
+        size: auto;
+        margin: 10mm;
+      }
+      
+      html, body {
+        height: auto !important;
+        overflow: visible !important;
+        background: white !important;
+        color: black !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      #root {
+        height: auto !important;
+        width: 100% !important;
+        overflow: visible !important;
+        display: block !important;
+      }
+
       .no-print {
         display: none !important;
       }
+
       aside {
         display: none !important;
       }
+
       main {
+        position: static !important;
+        display: block !important;
         width: 100% !important;
         height: auto !important;
+        min-height: auto !important;
         overflow: visible !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      /* Force all flex containers to expand in print */
+      .flex, .flex-col, .flex-1 {
+        display: block !important;
+        height: auto !important;
+        min-height: auto !important;
+        overflow: visible !important;
+      }
+
+      .overflow-y-auto, .overflow-hidden, .overflow-x-hidden {
+        overflow: visible !important;
+        height: auto !important;
+        max-height: none !important;
+      }
+
+      /* Fix Fishbone SVG scaling for print */
+      #fishbone-svg {
+        width: 100% !important;
+        height: auto !important;
+        max-height: 100% !important;
+        page-break-inside: avoid;
+        display: block;
+        margin-bottom: 20px;
+      }
+
+      .print-container {
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+
+      /* Sections should stay together if possible but allow breaking */
+      .break-inside-avoid {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+
+      /* Fix for Dark Mode text in Print */
+      .dark {
+        background-color: white !important;
+        color: black !important;
+      }
+      .dark * {
+        background-color: transparent !important;
+        color: black !important;
+        border-color: #ddd !important;
+      }
+      
+      h1, h2, h3, h4, p, span, li, td, th {
+        color: black !important;
+      }
+
+      /* Ensure tables look good */
+      table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+      }
+      th, td {
+        border: 1px solid #eee !important;
       }
     }
   </style>

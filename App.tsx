@@ -196,7 +196,7 @@ const App: React.FC = () => {
   const unassignedCauses = causes.filter(c => !c.category);
 
   return (
-    <div className={`flex h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300 overflow-hidden`}>
+    <div className={`flex h-screen print:h-auto bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300 overflow-hidden print:overflow-visible print:block`}>
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -320,7 +320,7 @@ const App: React.FC = () => {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col relative overflow-hidden">
+      <main className="flex-1 flex flex-col relative overflow-hidden print:overflow-visible print:h-auto print:block">
         {/* Toggle Sidebar Button */}
         <button
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -340,94 +340,77 @@ const App: React.FC = () => {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
                 </span>
-                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-widest">Active Investigation In Progress</span>
+                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-widest">Active Investigation</span>
               </div>
             )}
           </div>
           <div className="flex items-center gap-2">
-             <button 
-                onClick={toggleTheme}
-                className="w-10 h-10 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
-              >
+             <button onClick={toggleTheme} className="w-10 h-10 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
                 <i className={`fa-solid ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
               </button>
-             <button 
-                onClick={() => fileInputRef.current?.click()}
-                className="text-xs font-semibold px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all flex items-center gap-2"
-              >
+             <button onClick={() => fileInputRef.current?.click()} className="text-xs font-semibold px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all flex items-center gap-2">
                 <i className="fa-solid fa-file-import"></i>
                 <span className="hidden md:inline">Import</span>
               </button>
-             <button 
-                onClick={exportProject}
-                className="text-xs font-semibold px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all flex items-center gap-2"
-              >
+             <button onClick={exportProject} className="text-xs font-semibold px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all flex items-center gap-2">
                 <i className="fa-solid fa-floppy-disk"></i>
                 <span className="hidden md:inline">Save</span>
               </button>
              {method === AnalysisMethod.FISHBONE && (
-               <button 
-                  onClick={exportImage}
-                  className="text-xs font-semibold px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all flex items-center gap-2"
-                >
+               <button onClick={exportImage} className="text-xs font-semibold px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all flex items-center gap-2">
                   <i className="fa-solid fa-image"></i>
                   <span className="hidden md:inline">Export</span>
                 </button>
              )}
-             <button 
-                onClick={() => window.print()} 
-                className="text-xs font-semibold px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all flex items-center gap-2"
-              >
+             <button onClick={() => window.print()} className="text-xs font-semibold px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all flex items-center gap-2">
                 <i className="fa-solid fa-print"></i>
                 <span className="hidden md:inline">Print</span>
               </button>
-             <button 
-                onClick={resetAnalysis}
-                className="text-xs font-semibold px-4 py-2 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-400 shadow-sm transition-all"
-              >
+             <button onClick={resetAnalysis} className="text-xs font-semibold px-4 py-2 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-400 shadow-sm transition-all">
                 Reset
               </button>
           </div>
         </header>
 
-        <div className="flex-1 p-8 flex flex-col overflow-y-auto">
-          <div className="max-w-5xl mx-auto w-full flex-1 flex flex-col pb-20">
-            <div className="mb-6 flex justify-between items-end">
+        {/* Scrollable container for screen, expanded for print */}
+        <div className="flex-1 p-8 flex flex-col overflow-y-auto print:overflow-visible print:p-0 print:h-auto print:block">
+          <div className="max-w-5xl mx-auto w-full flex-1 flex flex-col pb-20 print:pb-0 print:m-0 print:max-w-none">
+            <div className="mb-6 flex justify-between items-end print:mb-4">
               <div>
-                <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">
+                <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-tight print:text-black">
                   {method === AnalysisMethod.FISHBONE ? 'Ishikawa Visualization' : 'Multi-Level Why Analysis'}
                 </h2>
-                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-                  {method === AnalysisMethod.FISHBONE 
-                    ? 'Drag causes or toggle investigation status to focus your analysis.' 
-                    : 'Start from the problem and ask "Why?" repeatedly.'}
+                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 print:text-slate-600">
+                  {problem || "Root Cause Analysis"}
                 </p>
               </div>
             </div>
 
-            <div className="flex-1 flex flex-col gap-12">
+            <div className="flex-1 flex flex-col gap-12 print:gap-10 print:block">
               {method === AnalysisMethod.FISHBONE ? (
-                <>
-                  <FishboneDiagram 
-                    problem={problem} 
-                    causes={causes} 
-                    onDrop={assignCategory} 
-                    onDeleteCause={deleteCause}
-                    onEditCause={updateCauseText}
-                    onToggleWorkingOn={toggleWorkingOn}
-                    theme={theme}
-                  />
+                <div className="print:block">
+                  <div className="print:mb-8 print:break-after-auto">
+                    <FishboneDiagram 
+                      problem={problem} 
+                      causes={causes} 
+                      onDrop={assignCategory} 
+                      onDeleteCause={deleteCause}
+                      onEditCause={updateCauseText}
+                      onToggleWorkingOn={toggleWorkingOn}
+                      theme={theme}
+                    />
+                  </div>
                   
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <div>
-                      <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 print:block print:space-y-12">
+                    <div className="print:break-inside-avoid">
+                      <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2 print:text-black">
                         <i className="fa-solid fa-table-list text-indigo-500"></i>
                         Cause Summary
                       </h3>
                       <SummaryTable causes={causes} />
                     </div>
                     
-                    <div>
+                    <div className="print:break-inside-avoid">
                       <TroubleshootingChecklist 
                         items={checklist} 
                         onUpdate={setChecklist} 
@@ -435,19 +418,21 @@ const App: React.FC = () => {
                       />
                     </div>
                   </div>
-                </>
+                </div>
               ) : (
-                <FiveWhysAnalysis 
-                  whys={fiveWhys} 
-                  onChange={handleWhyChange} 
-                  onAdd={addWhyStep}
-                  onRemove={removeWhyStep}
-                  problem={problem}
-                />
+                <div className="print:block">
+                  <FiveWhysAnalysis 
+                    whys={fiveWhys} 
+                    onChange={handleWhyChange} 
+                    onAdd={addWhyStep}
+                    onRemove={removeWhyStep}
+                    problem={problem}
+                  />
+                </div>
               )}
             </div>
 
-            {/* Hint Box */}
+            {/* Hint Box (Hidden in Print) */}
             <div className="no-print mt-12 p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm flex items-start gap-4">
               <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center text-indigo-500 dark:text-indigo-400 shrink-0">
                 <i className="fa-solid fa-lightbulb"></i>
@@ -456,7 +441,6 @@ const App: React.FC = () => {
                 <h4 className="font-semibold text-slate-800 dark:text-slate-200 text-sm">Workflow Tip</h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                   Toggle the investigation icon <i className="fa-solid fa-wrench"></i> on any cause to mark it as your current focus. 
-                  Then use the "Sync" button in the checklist to automatically generate verification tasks.
                 </p>
               </div>
             </div>
