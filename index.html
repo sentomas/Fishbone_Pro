@@ -38,12 +38,12 @@
     @media print {
       @page {
         size: A4 portrait;
-        margin: 10mm 15mm;
+        margin: 15mm;
       }
       
       html, body {
         height: auto !important;
-        min-height: auto !important;
+        min-height: 0 !important;
         overflow: visible !important;
         background: white !important;
         color: black !important;
@@ -58,7 +58,7 @@
         width: 100% !important;
         overflow: visible !important;
         display: block !important;
-        position: relative !important;
+        position: static !important;
       }
 
       /* Complete UI Reset for PDF Generation */
@@ -76,10 +76,11 @@
         margin: 0 !important;
         padding: 0 !important;
         visibility: hidden !important;
+        opacity: 0 !important;
       }
 
       main {
-        position: relative !important;
+        position: static !important;
         display: block !important;
         width: 100% !important;
         height: auto !important;
@@ -96,17 +97,20 @@
         gap: 0 !important;
       }
 
-      .overflow-y-auto, .overflow-hidden, .overflow-x-hidden {
+      div[class*="overflow-y-auto"], 
+      div[class*="overflow-hidden"], 
+      div[class*="h-screen"] {
         overflow: visible !important;
         height: auto !important;
         max-height: none !important;
+        min-height: 0 !important;
       }
 
       /* Unified Analysis Sections for PDF */
       .analysis-section {
         display: block !important;
         width: 100% !important;
-        margin-bottom: 40px !important;
+        margin-bottom: 50px !important;
         padding: 0 !important;
         page-break-inside: avoid;
         clear: both;
@@ -118,10 +122,10 @@
       }
 
       /* Professional PDF Typography */
-      h1 { font-size: 24pt !important; font-weight: 800 !important; margin-bottom: 20pt !important; color: black !important; border-bottom: 3pt solid #4f46e5 !important; padding-bottom: 8pt !important; }
-      h2 { font-size: 18pt !important; font-weight: 700 !important; margin: 30pt 0 15pt 0 !important; color: #1e293b !important; border-bottom: 1pt solid #e2e8f0 !important; padding-bottom: 6pt !important; }
-      h3 { font-size: 14pt !important; font-weight: 600 !important; margin-bottom: 10pt !important; color: #334155 !important; }
-      p, td, li, span, div { font-size: 10pt !important; color: #333 !important; line-height: 1.5 !important; }
+      h1 { font-size: 26pt !important; font-weight: 800 !important; margin-bottom: 20pt !important; color: black !important; border-bottom: 3pt solid #4f46e5 !important; padding-bottom: 10pt !important; }
+      h2 { font-size: 20pt !important; font-weight: 700 !important; margin: 30pt 0 15pt 0 !important; color: #1e293b !important; border-bottom: 1pt solid #e2e8f0 !important; padding-bottom: 8pt !important; }
+      h3 { font-size: 15pt !important; font-weight: 600 !important; margin-bottom: 10pt !important; color: #334155 !important; }
+      p, td, li, span, div { font-size: 11pt !important; color: #333 !important; line-height: 1.6 !important; }
 
       /* Fishbone Diagram PDF Fixes */
       #fishbone-svg {
@@ -137,11 +141,11 @@
       table {
         width: 100% !important;
         border-collapse: collapse !important;
-        margin-top: 10pt !important;
+        margin-top: 15pt !important;
       }
       th, td {
         border: 1pt solid #e2e8f0 !important;
-        padding: 8pt !important;
+        padding: 10pt !important;
         text-align: left !important;
       }
       th { background-color: #f8fafc !important; font-weight: bold !important; }
@@ -168,7 +172,7 @@
       .timeline-step {
         display: block !important;
         width: 100% !important;
-        margin-bottom: 20px !important;
+        margin-bottom: 30px !important;
         page-break-inside: avoid;
         position: relative !important;
       }

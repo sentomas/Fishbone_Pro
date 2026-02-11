@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { CategoryType, Cause, AnalysisMethod, ChecklistItem, DelayStep } from './types';
 import { FishboneDiagram } from './components/FishboneDiagram';
@@ -19,8 +18,7 @@ import {
   WidthType, 
   AlignmentType, 
   HeadingLevel,
-  BorderStyle,
-  VerticalAlign
+  BorderStyle
 } from 'docx';
 
 const App: React.FC = () => {
@@ -138,11 +136,12 @@ const App: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  // Helper to convert Fishbone SVG to PNG Blob for docx
+  // Improved helper to convert Fishbone SVG to PNG Blob for docx with Tainted Canvas handling
   const getFishboneImageBlob = async (): Promise<Blob | null> => {
     const svg = document.getElementById('fishbone-svg') as unknown as SVGSVGElement;
     if (!svg) return null;
 
+    // We clone the SVG and potentially sanitize it, but foreignObject is the issue
     const serializer = new XMLSerializer();
     const svgString = serializer.serializeToString(svg);
     const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
@@ -151,19 +150,27 @@ const App: React.FC = () => {
     return new Promise((resolve) => {
       const canvas = document.createElement('canvas');
       const img = new Image();
-      canvas.width = 2400; 
-      canvas.height = 1600;
+      canvas.width = 1600; 
+      canvas.height = 1000;
       const ctx = canvas.getContext('2d');
       if (!ctx) { resolve(null); return; }
 
       img.onload = () => {
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob((blob) => {
+        try {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          
+          // Using toDataURL first to check for tainting if toBlob fails
+          canvas.toBlob((blob) => {
+            URL.revokeObjectURL(url);
+            resolve(blob);
+          }, 'image/png');
+        } catch (e) {
+          console.warn("Image capture blocked by browser security (Tainted Canvas). The Word document will still generate without the diagram image.");
           URL.revokeObjectURL(url);
-          resolve(blob);
-        }, 'image/png');
+          resolve(null);
+        }
       };
       img.onerror = () => {
         URL.revokeObjectURL(url);
@@ -174,22 +181,81 @@ const App: React.FC = () => {
   };
 
   const exportToWord = async () => {
+    // Show a loading state or similar feedback as this takes time
     const fishboneBlob = await getFishboneImageBlob();
     const fishboneUint8Array = fishboneBlob ? new Uint8Array(await fishboneBlob.arrayBuffer()) : null;
 
+    // --- Prepare Document Sections (Avoids Spread Syntax Issues) ---
+
+    // 1. Fishbone Image or Fallback
+    const fishboneSection = fishboneUint8Array ? [
+      new Paragraph({
+        children: [
+          new ImageRun({
+            data: fishboneUint8Array,
+            transformation: { width: 550, height: 350 },
+            type: "png"
+          }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 200, after: 400 },
+      })
+    ] : [
+      new Paragraph({
+        children: [
+          new TextRun({ text: "Note: Graphical diagram export was restricted by your browser's security settings (Canvas Tainting). Review the tabular distribution below.", italics: true, color: "64748B" })
+        ],
+        spacing: { before: 200, after: 400 },
+      })
+    ];
+
+    // 2. Checklist Section
+    const checklistSection = checklist.length > 0 ? checklist.map(item => (
+      new Paragraph({
+        children: [
+          new TextRun({ text: item.completed ? "✓ " : "○ ", bold: true }),
+          new TextRun({ text: item.text, strike: item.completed, color: item.completed ? "94A3B8" : "000000" }),
+        ],
+      })
+    )) : [new Paragraph({ children: [new TextRun({ text: "No verification tasks added.", italics: true, color: "94A3B8" })] })];
+
+    // 3. Five Whys Section
+    const fiveWhysSection = fiveWhys.map((why, idx) => (
+      new Paragraph({
+        children: [
+          new TextRun({ text: `Drill-down Level ${idx + 1}: `, bold: true }),
+          new TextRun(why || "(Branch not documented)")
+        ],
+        indent: { left: 400 * idx },
+        spacing: { before: 200 },
+      })
+    ));
+
+    // 4. Delay/Timeline Rows
+    const timelineRows = delaySteps.map((step, idx) => (
+      new TableRow({
+        children: [
+          new TableCell({ children: [new Paragraph(String(idx + 1))] }),
+          new TableCell({ children: [new Paragraph(step.label)] }),
+          new TableCell({ children: [new Paragraph(`${step.duration} ${step.unit}`)] }),
+        ],
+      })
+    ));
+
+    // --- Build Document ---
     const doc = new Document({
       sections: [{
         properties: {},
         children: [
           new Paragraph({
-            text: "Root Cause Analysis Dossier",
+            text: "Root Cause Analysis Expert Report",
             heading: HeadingLevel.HEADING_1,
             alignment: AlignmentType.CENTER,
           }),
           new Paragraph({
             children: [
               new TextRun({ text: "Generated on: ", bold: true }),
-              new TextRun(new Date().toLocaleDateString()),
+              new TextRun(new Date().toLocaleString()),
             ],
             spacing: { after: 400 },
           }),
@@ -211,35 +277,25 @@ const App: React.FC = () => {
 
           // Fishbone Diagram
           new Paragraph({
-            text: "1. Ishikawa (Fishbone) Visualization",
+            text: "1. Ishikawa (Fishbone) Analysis",
             heading: HeadingLevel.HEADING_2,
             spacing: { before: 400 },
           }),
-          ...(fishboneUint8Array ? [
-            new Paragraph({
-              children: [
-                new ImageRun({
-                  data: fishboneUint8Array,
-                  transformation: { width: 600, height: 400 },
-                }),
-              ],
-              alignment: AlignmentType.CENTER,
-            })
-          ] : [new Paragraph("Diagram image could not be captured.")]),
+          ...fishboneSection,
 
           // Causal Summary Table
           new Paragraph({
-            text: "Causal Distribution Summary",
+            text: "Categorized Causal Distribution",
             heading: HeadingLevel.HEADING_3,
-            spacing: { before: 400 },
+            spacing: { before: 200 },
           }),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [
               new TableRow({
                 children: [
-                  new TableCell({ children: [new Paragraph({ text: "Category", bold: true })] }),
-                  new TableCell({ children: [new Paragraph({ text: "Identified Causes", bold: true })] }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Category", bold: true })] })], shading: { fill: "F8FAFC" } }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Identified Potential Causes", bold: true })] })], shading: { fill: "F8FAFC" } }),
                 ],
               }),
               ...Object.values(CategoryType).map(cat => {
@@ -250,7 +306,7 @@ const App: React.FC = () => {
                     new TableCell({ 
                       children: catCauses.length > 0 
                         ? catCauses.map(c => new Paragraph({ text: `• ${c.text}`, spacing: { before: 50, after: 50 } }))
-                        : [new Paragraph("No causes identified.")]
+                        : [new Paragraph({ children: [new TextRun({ text: "(None identified)", italics: true, color: "94A3B8" })] })]
                     }),
                   ],
                 });
@@ -264,42 +320,27 @@ const App: React.FC = () => {
             heading: HeadingLevel.HEADING_3,
             spacing: { before: 400 },
           }),
-          ...(checklist.length > 0 ? checklist.map(item => (
-            new Paragraph({
-              children: [
-                new TextRun({ text: item.completed ? "☑ " : "☐ ", font: "Segoe UI Symbol" }),
-                new TextRun({ text: item.text, strike: item.completed }),
-              ],
-            })
-          )) : [new Paragraph("No checklist items added.")]),
+          ...checklistSection,
 
           // 5 Whys
           new Paragraph({
-            text: "2. Root Cause Drill-down (5 Whys)",
+            text: "2. Systematic Drill-down (5 Whys)",
             heading: HeadingLevel.HEADING_2,
             pageBreakBefore: true,
           }),
-          ...fiveWhys.map((why, idx) => (
-            new Paragraph({
-              children: [
-                new TextRun({ text: `Level ${idx + 1}: `, bold: true }),
-                new TextRun(why || "(Empty step)")
-              ],
-              indent: { left: 720 * idx },
-              spacing: { before: 200 },
-            })
-          )),
+          ...fiveWhysSection,
+          
           new Paragraph({
             children: [
-              new TextRun({ text: "Identified Root Cause: ", bold: true, color: "059669" }),
-              new TextRun({ text: fiveWhys[fiveWhys.length - 1] || "None", bold: true, color: "059669" })
+              new TextRun({ text: "Identified Probable Root Cause: ", bold: true, color: "059669" }),
+              new TextRun({ text: fiveWhys[fiveWhys.length - 1] || "Not Concluded", bold: true, color: "059669" })
             ],
-            spacing: { before: 400 },
+            spacing: { before: 600 },
           }),
 
           // Timeline
           new Paragraph({
-            text: "3. Timeline Latency Pathway",
+            text: "3. Chronological Latency Pathway",
             heading: HeadingLevel.HEADING_2,
             pageBreakBefore: true,
           }),
@@ -308,28 +349,22 @@ const App: React.FC = () => {
             rows: [
               new TableRow({
                 children: [
-                  new TableCell({ children: [new Paragraph({ text: "Step #", bold: true })] }),
-                  new TableCell({ children: [new Paragraph({ text: "Event Label", bold: true })] }),
-                  new TableCell({ children: [new Paragraph({ text: "Duration", bold: true })] }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Step #", bold: true })] })], shading: { fill: "F8FAFC" } }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Event/Stage Label", bold: true })] })], shading: { fill: "F8FAFC" } }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Latency Value", bold: true })] })], shading: { fill: "F8FAFC" } }),
                 ],
               }),
-              ...delaySteps.map((step, idx) => (
-                new TableRow({
-                  children: [
-                    new TableCell({ children: [new Paragraph(String(idx + 1))] }),
-                    new TableCell({ children: [new Paragraph(step.label)] }),
-                    new TableCell({ children: [new Paragraph(`${step.duration} ${step.unit}`)] }),
-                  ],
-                })
-              )),
+              ...timelineRows,
               new TableRow({
                 children: [
                   new TableCell({ 
                     columnSpan: 2, 
-                    children: [new Paragraph({ text: "Accumulated System Latency", bold: true })] 
+                    children: [new Paragraph({ children: [new TextRun({ text: "Total Accumulated Pathway Latency", bold: true })] })],
+                    shading: { fill: "F1F5F9" }
                   }),
                   new TableCell({ 
-                    children: [new Paragraph({ text: String(delaySteps.reduce((acc, curr) => acc + curr.duration, 0)), bold: true })] 
+                    children: [new Paragraph({ children: [new TextRun({ text: String(delaySteps.reduce((acc, curr) => acc + curr.duration, 0)), bold: true })] })],
+                    shading: { fill: "F1F5F9" }
                   }),
                 ],
               }),
@@ -337,9 +372,9 @@ const App: React.FC = () => {
           }),
 
           new Paragraph({
-            text: "End of Report",
+            text: "END OF ANALYSIS REPORT",
             alignment: AlignmentType.CENTER,
-            spacing: { before: 800 },
+            spacing: { before: 1200 },
           }),
         ],
       }],
@@ -349,8 +384,8 @@ const App: React.FC = () => {
     const url = URL.createObjectURL(docBlob);
     const link = document.createElement('a');
     link.href = url;
-    const safeProblem = problem.slice(0, 20).replace(/\s+/g, '_') || 'Report';
-    link.download = `FishbonePro_${safeProblem}.docx`;
+    const safeProblem = problem.slice(0, 20).replace(/\s+/g, '_') || 'Analysis';
+    link.download = `FishbonePro_ExpertReport_${safeProblem}.docx`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -358,44 +393,18 @@ const App: React.FC = () => {
   const exportImage = () => {
     const svg = document.getElementById('fishbone-svg') as unknown as SVGSVGElement;
     if (!svg) {
-      alert("Fishbone diagram not currently active or visible. Switch to Fishbone mode to export the visual.");
+      alert("Please switch to the Fishbone mode to export the diagram.");
       return;
     }
-
     const serializer = new XMLSerializer();
     const svgString = serializer.serializeToString(svg);
     const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(svgBlob);
-    
-    const svgLink = document.createElement('a');
-    svgLink.href = url;
+    const link = document.createElement('a');
+    link.href = url;
     const safeProblem = problem.slice(0, 20).replace(/\s+/g, '_') || 'Fishbone';
-    svgLink.download = `FishbonePro_${safeProblem}.svg`;
-    svgLink.click();
-    
-    const canvas = document.createElement('canvas');
-    const img = new Image();
-    canvas.width = 2400; // High resolution
-    canvas.height = 1600;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    img.onload = () => {
-      try {
-        ctx.fillStyle = theme === 'dark' ? '#0f172a' : '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        const pngUrl = canvas.toDataURL('image/png');
-        const pngLink = document.createElement('a');
-        pngLink.href = pngUrl;
-        pngLink.download = `FishbonePro_${safeProblem}.png`;
-        pngLink.click();
-      } catch (e) {
-        console.warn("PNG export blocked by security policy (Tainted Canvas). Direct SVG download has been triggered instead.");
-      }
-      URL.revokeObjectURL(url);
-    };
-    img.src = url;
+    link.download = `FishbonePro_${safeProblem}.svg`;
+    link.click();
   };
 
   const importProject = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -412,11 +421,8 @@ const App: React.FC = () => {
         if (data.fiveWhys) setFiveWhys(data.fiveWhys);
         if (data.checklist) setChecklist(data.checklist);
         if (data.delaySteps) setDelaySteps(data.delaySteps);
-        
-        // UI feedback
-        console.log("Project successfully imported:", data.problem);
       } catch (error) {
-        alert("Critical Error: The selected file is not a valid Fishbone Pro project JSON.");
+        alert("Invalid project file.");
       }
     };
     reader.readAsText(file);
@@ -426,12 +432,12 @@ const App: React.FC = () => {
   const importFromCauses = () => {
     const workingCauses = causes.filter(c => c.isWorkingOn);
     if (workingCauses.length === 0) {
-      alert("No causes marked for investigation. Please toggle the 'wrench' icon on potential causes in the diagram first.");
+      alert("No causes marked for investigation (wrench icon).");
       return;
     }
     const newItems: ChecklistItem[] = workingCauses.map(c => ({
       id: Math.random().toString(36).substr(2, 9),
-      text: `Verify Cause: ${c.text}`,
+      text: `Verify: ${c.text}`,
       completed: false
     }));
     setChecklist(prev => [...prev, ...newItems]);
@@ -440,8 +446,7 @@ const App: React.FC = () => {
   const unassignedCauses = causes.filter(c => !c.category);
 
   return (
-    <div className={`flex h-screen print:h-auto bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300 overflow-hidden print:overflow-visible print:block`}>
-      {/* Hidden File Input for Import functionality */}
+    <div className={`flex h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300 overflow-hidden print:overflow-visible print:h-auto print:block`}>
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -450,7 +455,6 @@ const App: React.FC = () => {
         accept=".json" 
       />
       
-      {/* Left Navigation & Control Sidebar */}
       <aside className={`no-print bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 flex flex-col ${isSidebarOpen ? 'w-80' : 'w-0'}`}>
         <div className="p-6 flex-1 overflow-y-auto overflow-x-hidden">
           <div className="flex items-center justify-between mb-8">
@@ -463,24 +467,15 @@ const App: React.FC = () => {
           <div className="mb-8">
             <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Analysis Workspace</label>
             <div className="grid grid-cols-1 gap-2">
-              <button 
-                onClick={() => setMethod(AnalysisMethod.FISHBONE)} 
-                className={`flex items-center gap-3 py-3 px-4 text-xs font-bold rounded-xl transition-all ${method === AnalysisMethod.FISHBONE ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
-              >
+              <button onClick={() => setMethod(AnalysisMethod.FISHBONE)} className={`flex items-center gap-3 py-3 px-4 text-xs font-bold rounded-xl transition-all ${method === AnalysisMethod.FISHBONE ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
                 <i className="fa-solid fa-diagram-project w-4 text-center"></i>
                 Ishikawa (Fishbone)
               </button>
-              <button 
-                onClick={() => setMethod(AnalysisMethod.FIVE_WHYS)} 
-                className={`flex items-center gap-3 py-3 px-4 text-xs font-bold rounded-xl transition-all ${method === AnalysisMethod.FIVE_WHYS ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
-              >
+              <button onClick={() => setMethod(AnalysisMethod.FIVE_WHYS)} className={`flex items-center gap-3 py-3 px-4 text-xs font-bold rounded-xl transition-all ${method === AnalysisMethod.FIVE_WHYS ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
                 <i className="fa-solid fa-list-ol w-4 text-center"></i>
                 Multi-Level 5 Whys
               </button>
-              <button 
-                onClick={() => setMethod(AnalysisMethod.DELAY_PATH)} 
-                className={`flex items-center gap-3 py-3 px-4 text-xs font-bold rounded-xl transition-all ${method === AnalysisMethod.DELAY_PATH ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
-              >
+              <button onClick={() => setMethod(AnalysisMethod.DELAY_PATH)} className={`flex items-center gap-3 py-3 px-4 text-xs font-bold rounded-xl transition-all ${method === AnalysisMethod.DELAY_PATH ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
                 <i className="fa-solid fa-timeline w-4 text-center"></i>
                 Time Delay Pathway
               </button>
@@ -489,12 +484,7 @@ const App: React.FC = () => {
 
           <div className="mb-8">
             <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Target Problem</label>
-            <textarea 
-              value={problem} 
-              onChange={(e) => setProblem(e.target.value)} 
-              placeholder="Primary incident or defect description..." 
-              className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 dark:text-slate-200 outline-none h-28 transition-all resize-none shadow-inner" 
-            />
+            <textarea value={problem} onChange={(e) => setProblem(e.target.value)} placeholder="Enter defect description..." className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 dark:text-slate-200 outline-none h-28 transition-all resize-none shadow-inner" />
           </div>
 
           {method === AnalysisMethod.FISHBONE && (
@@ -502,20 +492,13 @@ const App: React.FC = () => {
               <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Input Candidate Causes</label>
               <form onSubmit={handleAddManualCause} className="mb-4">
                 <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    value={newCauseText} 
-                    onChange={(e) => setNewCauseText(e.target.value)} 
-                    placeholder="New cause..." 
-                    className="flex-1 p-3 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" 
-                  />
+                  <input type="text" value={newCauseText} onChange={(e) => setNewCauseText(e.target.value)} placeholder="New cause..." className="flex-1 p-3 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" />
                   <button type="submit" className="bg-indigo-600 text-white px-4 rounded-xl hover:bg-indigo-700 transition-colors">
                     <i className="fa-solid fa-plus"></i>
                   </button>
                 </div>
               </form>
               <div className="space-y-2">
-                <span className="text-[9px] font-bold text-slate-400 uppercase">Pool ({unassignedCauses.length})</span>
                 {unassignedCauses.map(cause => (
                   <CauseCard key={cause.id} cause={cause} onDelete={deleteCause} onEdit={(newText) => updateCauseText(cause.id, newText)} onToggleWorkingOn={toggleWorkingOn} />
                 ))}
@@ -523,124 +506,93 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {/* Workflow Guide - Contextual Help */}
           <div className="mt-auto pt-8 border-t border-slate-100 dark:border-slate-800">
              <div className="p-5 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100 dark:border-indigo-900/30">
                <div className="flex items-center gap-3 mb-3">
                  <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/50 rounded-lg flex items-center justify-center text-indigo-600 dark:text-indigo-400">
                    <i className="fa-solid fa-lightbulb"></i>
                  </div>
-                 <h4 className="font-black text-slate-800 dark:text-slate-200 text-[10px] uppercase tracking-[0.2em]">Workflow Tip</h4>
+                 <h4 className="font-black text-slate-800 dark:text-slate-200 text-[10px] uppercase tracking-[0.2em]">Expert Tip</h4>
                </div>
                <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
-                 {method === AnalysisMethod.FISHBONE 
-                   ? "Identify potential categories and drag causes into the diagram skeleton for mapping." 
-                   : method === AnalysisMethod.FIVE_WHYS 
-                   ? "Drill down through logical layers of causality until a root failure is identified."
-                   : "Map chronological events to identify bottlenecks and latency clusters."}
+                 {method === AnalysisMethod.FISHBONE ? "Categorize causes to see distribution patterns." : method === AnalysisMethod.FIVE_WHYS ? "Logical drilling uncovers hidden systemic failures." : "Mapping chronological steps identifies operational bottlenecks."}
                </p>
              </div>
           </div>
         </div>
       </aside>
 
-      {/* Primary Workspace Area */}
-      <main className="flex-1 flex flex-col relative overflow-hidden print:overflow-visible print:h-auto print:block">
+      <main className="flex-1 flex flex-col relative overflow-hidden print:overflow-visible print:block print:h-auto">
         <header className="no-print h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 shrink-0 shadow-sm z-20">
           <div className="flex items-center gap-4">
-             <button 
-               onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
-               className="w-10 h-10 flex items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-700 transition-colors"
-             >
+             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="w-10 h-10 flex items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-indigo-50 transition-colors">
                <i className={`fa-solid ${isSidebarOpen ? 'fa-chevron-left' : 'fa-chevron-right'}`}></i>
              </button>
              <div className="flex flex-col">
-               <span className="text-xs font-black text-slate-400 uppercase tracking-[0.15em]">Active View</span>
+               <span className="text-xs font-black text-slate-400 uppercase tracking-[0.15em]">Analysis Mode</span>
                <span className="text-sm font-bold text-slate-800 dark:text-slate-200">
-                 {method === AnalysisMethod.FISHBONE ? 'Root Cause Mapping' : method === AnalysisMethod.FIVE_WHYS ? 'Drill-down Analysis' : 'Timeline pathway'}
+                 {method === AnalysisMethod.FISHBONE ? 'Ishikawa Mapping' : method === AnalysisMethod.FIVE_WHYS ? 'Root Cause Drill-down' : 'Timeline Latency'}
                </span>
              </div>
           </div>
           
           <div className="flex items-center gap-2">
-             <button onClick={toggleTheme} className="w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+             <button onClick={toggleTheme} className="w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition-all">
                <i className={`fa-solid ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
              </button>
              
              <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
 
-             <button 
-               onClick={() => fileInputRef.current?.click()} 
-               className="text-xs font-bold px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all flex items-center gap-2"
-             >
+             <button onClick={() => fileInputRef.current?.click()} className="text-[10px] font-bold px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all flex items-center gap-2 uppercase tracking-widest">
                 <i className="fa-solid fa-file-import text-indigo-500"></i>
-                <span className="hidden lg:inline uppercase tracking-widest text-[10px]">Import</span>
+                Import
              </button>
 
-             <button 
-               onClick={exportProject} 
-               className="text-xs font-bold px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all flex items-center gap-2"
-             >
+             <button onClick={exportProject} className="text-[10px] font-bold px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all flex items-center gap-2 uppercase tracking-widest">
                 <i className="fa-solid fa-floppy-disk text-indigo-500"></i>
-                <span className="hidden lg:inline uppercase tracking-widest text-[10px]">Save JSON</span>
+                JSON
              </button>
 
-             <button 
-               onClick={exportToWord} 
-               className="text-xs font-bold px-4 py-2 bg-indigo-600 text-white rounded-xl shadow-lg hover:bg-indigo-700 transition-all flex items-center gap-2"
-             >
+             <button onClick={exportToWord} className="text-[10px] font-bold px-4 py-2 bg-indigo-600 text-white rounded-xl shadow-lg hover:bg-indigo-700 transition-all flex items-center gap-2 uppercase tracking-widest">
                 <i className="fa-solid fa-file-word"></i>
-                <span className="uppercase tracking-widest text-[10px]">Export as Word</span>
+                Export Word
              </button>
 
-             <button 
-               onClick={resetAnalysis} 
-               className="text-[10px] font-black uppercase tracking-widest px-4 py-2 text-slate-400 hover:text-red-500 transition-colors"
-             >
-                Reset
+             <button onClick={() => window.print()} className="text-[10px] font-bold px-4 py-2 border border-indigo-200 dark:border-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-xl hover:bg-indigo-50 transition-all flex items-center gap-2 uppercase tracking-widest">
+                <i className="fa-solid fa-file-pdf"></i>
+                Save as PDF
              </button>
           </div>
         </header>
 
-        {/* Content Viewport */}
         <div className="flex-1 p-8 overflow-y-auto print:p-0 print:overflow-visible transition-colors">
-          <div className="max-w-5xl mx-auto w-full flex flex-col gap-12 print:m-0 print:max-w-none">
+          <div className="max-w-5xl mx-auto w-full flex flex-col gap-12 print:gap-16 print:m-0 print:max-w-none">
             
-            {/* PDF Identity Banner */}
-            <div className="hidden print:block mb-12">
+            <div className="hidden print:block">
               <div className="flex justify-between items-start border-b-4 border-indigo-600 pb-6">
                 <div>
-                  <h1 className="text-4xl font-black text-slate-900 mb-2">Root Cause Analysis Dossier</h1>
-                  <div className="flex items-center gap-4 text-slate-500 font-bold uppercase text-xs tracking-widest">
-                    <span>Expert Edition</span>
-                    <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span>
-                    <span>Systemic Breakdown Report</span>
-                  </div>
+                  <h1 className="text-3xl font-black text-slate-900 mb-2 uppercase tracking-tighter">Analytical Root Cause Dossier</h1>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Expert Edition | Systematic Operational Analysis</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs font-black text-slate-400 uppercase mb-1">Generated On</p>
-                  <p className="text-lg font-bold text-slate-800">{new Date().toLocaleDateString()}</p>
+                  <p className="text-xs font-black text-slate-400 uppercase mb-1">Dossier Date</p>
+                  <p className="text-base font-bold text-slate-800">{new Date().toLocaleDateString()}</p>
                 </div>
               </div>
-              <div className="mt-8 bg-slate-50 p-6 rounded-2xl border border-slate-200">
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Subject Problem Statement</h3>
-                <p className="text-2xl font-bold text-slate-800 leading-tight">{problem || "Problem statement not explicitly defined."}</p>
+              <div className="mt-8 p-6 bg-slate-50 rounded-2xl border border-slate-200">
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Subject Problem</h3>
+                <p className="text-xl font-bold text-slate-800">{problem || "No problem statement defined."}</p>
               </div>
             </div>
 
-            {/* Analysis Views: Switched based on Method (All visible in Print) */}
-            
-            {/* Fishbone Section */}
             <section className={`analysis-section ${method === AnalysisMethod.FISHBONE ? 'block' : 'hidden print:block'}`}>
-              <div className="flex items-center justify-between mb-8 print:mb-12">
-                <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-3">
-                  <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/40 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-sm print:hidden">
-                    <i className="fa-solid fa-fish"></i>
-                  </div>
-                  <span>Ishikawa Visualization</span>
-                </h2>
-              </div>
-              <div className="mb-10 rounded-2xl overflow-hidden shadow-2xl print:shadow-none border border-slate-200 dark:border-slate-800">
+              <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-3 mb-8">
+                <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/40 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 print:hidden">
+                  <i className="fa-solid fa-fish"></i>
+                </div>
+                <span>1. Ishikawa Visualization</span>
+              </h2>
+              <div className="mb-10 rounded-2xl overflow-hidden shadow-xl border border-slate-200 dark:border-slate-800 bg-white">
                 <FishboneDiagram 
                   problem={problem} 
                   causes={causes} 
@@ -653,11 +605,11 @@ const App: React.FC = () => {
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 print:block print:space-y-12">
                 <div className="break-inside-avoid">
-                  <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Causal Distribution</h3>
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Categorical Summary</h3>
                   <SummaryTable causes={causes} />
                 </div>
                 <div className="break-inside-avoid">
-                  <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Tactical Checklist</h3>
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Verification Actions</h3>
                   <TroubleshootingChecklist 
                     items={checklist} 
                     onUpdate={setChecklist} 
@@ -667,17 +619,14 @@ const App: React.FC = () => {
               </div>
             </section>
 
-            {/* 5 Whys Section */}
             <section className={`analysis-section page-break ${method === AnalysisMethod.FIVE_WHYS ? 'block' : 'hidden print:block'}`}>
-              <div className="flex items-center justify-between mb-8 print:mb-12">
-                <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-3">
-                  <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/40 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-sm print:hidden">
-                    <i className="fa-solid fa-list-check"></i>
-                  </div>
-                  <span>Root Cause Drill-down (5 Whys)</span>
-                </h2>
-              </div>
-              <div className="bg-white dark:bg-slate-900/30 rounded-3xl p-8 border border-slate-100 dark:border-slate-800 shadow-inner">
+              <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-3 mb-8">
+                <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/40 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 print:hidden">
+                  <i className="fa-solid fa-list-check"></i>
+                </div>
+                <span>2. Multi-Level Drill-down</span>
+              </h2>
+              <div className="bg-white dark:bg-slate-900/30 rounded-3xl p-8 border border-slate-100 dark:border-slate-800">
                 <FiveWhysAnalysis 
                   whys={fiveWhys} 
                   onChange={handleWhyChange} 
@@ -688,17 +637,14 @@ const App: React.FC = () => {
               </div>
             </section>
 
-            {/* Delay Pathway Section */}
             <section className={`analysis-section page-break ${method === AnalysisMethod.DELAY_PATH ? 'block' : 'hidden print:block'}`}>
-              <div className="flex items-center justify-between mb-8 print:mb-12">
-                <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-3">
-                  <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/40 rounded-xl flex items-center justify-center text-orange-600 dark:text-orange-400 shadow-sm print:hidden">
-                    <i className="fa-solid fa-timeline"></i>
-                  </div>
-                  <span>Timeline Latency pathway</span>
-                </h2>
-              </div>
-              <div className="bg-white dark:bg-slate-900/30 rounded-3xl p-10 border border-slate-100 dark:border-slate-800 shadow-inner">
+              <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-3 mb-8">
+                <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/40 rounded-xl flex items-center justify-center text-orange-600 dark:text-orange-400 print:hidden">
+                  <i className="fa-solid fa-timeline"></i>
+                </div>
+                <span>3. Latency Pathway</span>
+              </h2>
+              <div className="bg-white dark:bg-slate-900/30 rounded-3xl p-10 border border-slate-100 dark:border-slate-800">
                 <DelayPathAnalysis 
                   steps={delaySteps} 
                   onUpdate={setDelaySteps} 
@@ -707,9 +653,8 @@ const App: React.FC = () => {
               </div>
             </section>
 
-            {/* Final Report Certification */}
             <div className="hidden print:block mt-20 pt-10 border-t border-slate-200 text-center">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Fishbone Pro Analytical Suite | Internal Analysis Report</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Fishbone Pro Analytical Suite | Internal Expert Report</p>
             </div>
           </div>
         </div>
