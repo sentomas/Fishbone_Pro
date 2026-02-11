@@ -29,16 +29,16 @@ export interface ChecklistItem {
 
 export interface DelayStep {
   id: string;
+  label: string;
+  duration: number; // in minutes/hours/days
+  unit: string;
   description: string;
-  duration: number;
-  unit: 'mins' | 'hours' | 'days';
 }
 
 export interface FishboneData {
   problem: string;
   causes: Cause[];
   checklist: ChecklistItem[];
-  delaySteps: DelayStep[];
 }
 
 export interface SuggestionResponse {

@@ -7,7 +7,6 @@
   <title>Fishbone Pro</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    // Define process object for environments that don't provide it natively
     window.process = window.process || { env: {} };
     
     tailwind.config = {
@@ -34,19 +33,24 @@
       -ms-overflow-style: none;
       scrollbar-width: none;
     }
+
+    /* Professional Print & PDF Export Logic */
     @media print {
       @page {
-        size: auto;
-        margin: 10mm;
+        size: A4 portrait;
+        margin: 10mm 15mm;
       }
       
       html, body {
         height: auto !important;
+        min-height: auto !important;
         overflow: visible !important;
         background: white !important;
         color: black !important;
         margin: 0 !important;
         padding: 0 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
       }
 
       #root {
@@ -54,33 +58,42 @@
         width: 100% !important;
         overflow: visible !important;
         display: block !important;
+        position: relative !important;
       }
 
-      .no-print {
+      /* Complete UI Reset for PDF Generation */
+      .no-print, 
+      aside, 
+      header,
+      button,
+      nav,
+      form,
+      .workflow-hint-box,
+      .no-print-force {
         display: none !important;
-      }
-
-      aside {
-        display: none !important;
+        height: 0 !important;
+        width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        visibility: hidden !important;
       }
 
       main {
-        position: static !important;
+        position: relative !important;
         display: block !important;
         width: 100% !important;
         height: auto !important;
-        min-height: auto !important;
         overflow: visible !important;
-        margin: 0 !important;
         padding: 0 !important;
+        margin: 0 !important;
       }
 
-      /* Force all flex containers to expand in print */
-      .flex, .flex-col, .flex-1 {
+      /* Reset Flex/Overflow for Print Flow */
+      .flex, .flex-col, .flex-1, .grid {
         display: block !important;
         height: auto !important;
-        min-height: auto !important;
         overflow: visible !important;
+        gap: 0 !important;
       }
 
       .overflow-y-auto, .overflow-hidden, .overflow-x-hidden {
@@ -89,49 +102,88 @@
         max-height: none !important;
       }
 
-      /* Fix Fishbone SVG scaling for print */
+      /* Unified Analysis Sections for PDF */
+      .analysis-section {
+        display: block !important;
+        width: 100% !important;
+        margin-bottom: 40px !important;
+        padding: 0 !important;
+        page-break-inside: avoid;
+        clear: both;
+        position: relative !important;
+      }
+
+      .page-break {
+        page-break-before: always !important;
+      }
+
+      /* Professional PDF Typography */
+      h1 { font-size: 24pt !important; font-weight: 800 !important; margin-bottom: 20pt !important; color: black !important; border-bottom: 3pt solid #4f46e5 !important; padding-bottom: 8pt !important; }
+      h2 { font-size: 18pt !important; font-weight: 700 !important; margin: 30pt 0 15pt 0 !important; color: #1e293b !important; border-bottom: 1pt solid #e2e8f0 !important; padding-bottom: 6pt !important; }
+      h3 { font-size: 14pt !important; font-weight: 600 !important; margin-bottom: 10pt !important; color: #334155 !important; }
+      p, td, li, span, div { font-size: 10pt !important; color: #333 !important; line-height: 1.5 !important; }
+
+      /* Fishbone Diagram PDF Fixes */
       #fishbone-svg {
         width: 100% !important;
         height: auto !important;
-        max-height: 100% !important;
-        page-break-inside: avoid;
-        display: block;
-        margin-bottom: 20px;
+        max-width: 100% !important;
+        display: block !important;
+        margin: 0 auto 30px auto !important;
+        overflow: visible !important;
       }
 
-      .print-container {
-        padding: 0 !important;
-        margin: 0 !important;
-      }
-
-      /* Sections should stay together if possible but allow breaking */
-      .break-inside-avoid {
-        page-break-inside: avoid;
-        break-inside: avoid;
-      }
-
-      /* Fix for Dark Mode text in Print */
-      .dark {
-        background-color: white !important;
-        color: black !important;
-      }
-      .dark * {
-        background-color: transparent !important;
-        color: black !important;
-        border-color: #ddd !important;
-      }
-      
-      h1, h2, h3, h4, p, span, li, td, th {
-        color: black !important;
-      }
-
-      /* Ensure tables look good */
+      /* Table Styles for PDF */
       table {
         width: 100% !important;
         border-collapse: collapse !important;
+        margin-top: 10pt !important;
       }
       th, td {
-        border: 1px solid #eee !important;
+        border: 1pt solid #e2e8f0 !important;
+        padding: 8pt !important;
+        text-align: left !important;
+      }
+      th { background-color: #f8fafc !important; font-weight: bold !important; }
+
+      /* Force White Background for Dark Mode Users */
+      .dark, .dark * {
+        background-color: transparent !important;
+        color: black !important;
+        border-color: #e2e8f0 !important;
+        box-shadow: none !important;
+      }
+
+      /* Alternating Timeline Print Fixes */
+      .timeline-spine {
+        background: #fb923c !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        display: block !important;
+        width: 2px !important;
+        position: absolute !important;
+        top: 0 !important;
+        bottom: 0 !important;
+      }
+      .timeline-step {
+        display: block !important;
+        width: 100% !important;
+        margin-bottom: 20px !important;
+        page-break-inside: avoid;
+        position: relative !important;
+      }
+      .timeline-content-wrapper {
+        width: 45% !important;
+        display: block !important;
+      }
+      .timeline-left { margin-right: 55% !important; }
+      .timeline-right { margin-left: 55% !important; }
+      .timeline-dot {
+        position: absolute !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        background-color: #fb923c !important;
+        display: block !important;
       }
     }
   </style>
@@ -141,14 +193,14 @@
     "@google/genai": "https://esm.sh/@google/genai@^1.40.0",
     "react/": "https://esm.sh/react@^19.2.4/",
     "react": "https://esm.sh/react@^19.2.4",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/"
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "docx": "https://esm.sh/docx@^9.1.0"
   }
 }
 </script>
 </head>
 <body class="bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
   <div id="root"></div>
-  <!-- Explicitly load the entry point -->
   <script type="module" src="index.tsx"></script>
 </body>
 </html>

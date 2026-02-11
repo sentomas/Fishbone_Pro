@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { DelayStep } from '../types';
 
 interface DelayPathAnalysisProps {
@@ -9,137 +9,149 @@ interface DelayPathAnalysisProps {
 }
 
 export const DelayPathAnalysis: React.FC<DelayPathAnalysisProps> = ({ steps, onUpdate, problem }) => {
-  const addStep = () => {
+  const [newLabel, setNewLabel] = useState('');
+  const [newDuration, setNewDuration] = useState<number>(0);
+  const [newUnit, setNewUnit] = useState('mins');
+
+  const addStep = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newLabel.trim()) return;
     const newStep: DelayStep = {
       id: Math.random().toString(36).substr(2, 9),
-      description: '',
-      duration: 0,
-      unit: 'hours'
+      label: newLabel.trim(),
+      duration: newDuration,
+      unit: newUnit,
+      description: ''
     };
     onUpdate([...steps, newStep]);
+    setNewLabel('');
+    setNewDuration(0);
   };
 
   const removeStep = (id: string) => {
     onUpdate(steps.filter(s => s.id !== id));
   };
 
-  const updateStep = (id: string, updates: Partial<DelayStep>) => {
-    onUpdate(steps.map(s => s.id === id ? { ...s, ...updates } : s));
-  };
-
-  const moveStep = (index: number, direction: 'up' | 'down') => {
-    const newSteps = [...steps];
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= newSteps.length) return;
-    [newSteps[index], newSteps[targetIndex]] = [newSteps[targetIndex], newSteps[index]];
-    onUpdate(newSteps);
-  };
-
-  const calculateTotalInHours = () => {
-    return steps.reduce((acc, step) => {
-      let h = step.duration;
-      if (step.unit === 'mins') h = step.duration / 60;
-      if (step.unit === 'days') h = step.duration * 24;
-      return acc + h;
-    }, 0);
-  };
-
-  const totalHours = calculateTotalInHours();
-  const formatTotal = () => {
-    if (totalHours >= 24) return `${(totalHours / 24).toFixed(1)} Days`;
-    return `${totalHours.toFixed(1)} Hours`;
-  };
+  const totalTime = steps.reduce((acc, curr) => acc + curr.duration, 0);
 
   return (
-    <div className="w-full max-w-4xl mx-auto py-4">
-      <div className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm print:border-none print:shadow-none">
-        <div>
-          <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-            <i className="fa-solid fa-clock-rotate-left text-orange-500"></i>
-            Time Delay Pathway
-          </h3>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Quantifying the latency between failure and resolution.</p>
-        </div>
-        <div className="bg-orange-50 dark:bg-orange-950/30 px-6 py-4 rounded-xl border border-orange-100 dark:border-orange-900/40 text-center">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-orange-600 dark:text-orange-400 mb-1">Total Accumulated Delay</p>
-          <p className="text-3xl font-black text-orange-700 dark:text-orange-300">{formatTotal()}</p>
-        </div>
-      </div>
-
+    <div className="w-full max-w-5xl mx-auto py-12 px-4 relative">
       <div className="relative">
-        {/* Timeline Spine */}
-        {steps.length > 0 && (
-          <div className="absolute left-8 md:left-1/2 top-0 bottom-0 w-1 bg-gradient-to-b from-orange-400 to-amber-200 dark:from-orange-600 dark:to-slate-800 transform -translate-x-1/2 rounded-full hidden md:block"></div>
-        )}
+        {/* Central Connection Line */}
+        <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-slate-200 dark:bg-slate-800 -translate-x-1/2 z-0 timeline-spine"></div>
 
+        {/* Start Point - Always Centered */}
+        <div className="flex flex-col items-center mb-16 relative z-10 timeline-step">
+          <div className="w-12 h-12 rounded-full bg-slate-900 dark:bg-slate-800 flex items-center justify-center text-white shadow-xl border-4 border-white dark:border-slate-700 timeline-dot">
+            <i className="fa-solid fa-flag-checkered"></i>
+          </div>
+          <div className="mt-4 p-4 bg-slate-100 dark:bg-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-800 text-center max-w-sm shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Incident Onset</p>
+            <p className="text-sm font-bold text-slate-800 dark:text-slate-200 line-clamp-2">{problem || "Define problem statement..."}</p>
+          </div>
+        </div>
+
+        {/* Dynamic Timeline Steps (Alternating) */}
         <div className="space-y-12">
-          {steps.map((step, index) => (
-            <div 
-              key={step.id} 
-              className={`flex flex-col md:flex-row items-center gap-8 relative ${index % 2 === 0 ? 'md:flex-row-reverse' : ''}`}
-            >
-              {/* Step Number Badge */}
-              <div className="absolute left-8 md:left-1/2 w-10 h-10 rounded-full bg-white dark:bg-slate-900 border-4 border-orange-500 dark:border-orange-600 transform -translate-x-1/2 z-10 flex items-center justify-center text-sm font-black shadow-md">
-                {index + 1}
-              </div>
-
-              <div className="w-full md:w-[45%]">
-                <div className="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl p-5 shadow-sm hover:border-orange-300 dark:hover:border-orange-800 transition-all group">
-                  <div className="flex justify-between items-start mb-4">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Event Description</span>
-                    <div className="flex gap-1 no-print opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => moveStep(index, 'up')} disabled={index === 0} className="w-6 h-6 rounded bg-slate-50 dark:bg-slate-700 hover:bg-slate-200 text-slate-400 disabled:opacity-30"><i className="fa-solid fa-chevron-up text-[10px]"></i></button>
-                      <button onClick={() => moveStep(index, 'down')} disabled={index === steps.length - 1} className="w-6 h-6 rounded bg-slate-50 dark:bg-slate-700 hover:bg-slate-200 text-slate-400 disabled:opacity-30"><i className="fa-solid fa-chevron-down text-[10px]"></i></button>
-                      <button onClick={() => removeStep(step.id)} className="w-6 h-6 rounded bg-red-50 dark:bg-red-900/30 hover:bg-red-100 text-red-400"><i className="fa-solid fa-trash text-[10px]"></i></button>
-                    </div>
-                  </div>
-                  
-                  <textarea
-                    value={step.description}
-                    onChange={(e) => updateStep(step.id, { description: e.target.value })}
-                    placeholder="e.g. Waiting for spare parts delivery..."
-                    className="w-full bg-transparent border-none text-slate-700 dark:text-slate-200 font-medium text-sm focus:ring-0 resize-none h-16 scrollbar-hide"
-                  />
-                  
-                  <div className="mt-4 pt-4 border-t border-slate-50 dark:border-slate-700 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        value={step.duration || ''}
-                        onChange={(e) => updateStep(step.id, { duration: parseFloat(e.target.value) || 0 })}
-                        className="w-16 p-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-center font-bold text-orange-600 dark:text-orange-400 focus:ring-1 focus:ring-orange-500 outline-none"
-                      />
-                      <select
-                        value={step.unit}
-                        onChange={(e) => updateStep(step.id, { unit: e.target.value as any })}
-                        className="bg-transparent text-xs font-bold text-slate-500 dark:text-slate-400 uppercase outline-none cursor-pointer"
+          {steps.map((step, idx) => {
+            const isEven = idx % 2 === 0;
+            return (
+              <div key={step.id} className={`flex items-center w-full timeline-step ${isEven ? 'flex-row' : 'flex-row-reverse'}`}>
+                {/* Step Content */}
+                <div className={`w-1/2 flex ${isEven ? 'justify-end pr-12' : 'justify-start pl-12'} timeline-content-wrapper ${isEven ? 'timeline-left' : 'timeline-right'}`}>
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-lg group relative hover:shadow-xl transition-all max-w-md w-full">
+                    <div className="flex justify-between items-start gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                           <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Stage {idx + 1}</span>
+                        </div>
+                        <h4 className="text-base font-bold text-slate-800 dark:text-slate-100 leading-snug">{step.label}</h4>
+                        <div className="mt-4 flex items-center gap-3">
+                          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 text-[11px] font-black uppercase tracking-wider">
+                            <i className="fa-solid fa-clock-rotate-left"></i>
+                            {step.duration} {step.unit}
+                          </span>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => removeStep(step.id)}
+                        className="no-print p-2 text-slate-300 hover:text-red-500 transition-colors"
                       >
-                        <option value="mins">Mins</option>
-                        <option value="hours">Hours</option>
-                        <option value="days">Days</option>
-                      </select>
+                        <i className="fa-solid fa-trash-can text-sm"></i>
+                      </button>
                     </div>
-                    <div className="text-[10px] font-bold text-slate-400 dark:text-slate-600">
-                      PATH POINT #{index + 1}
-                    </div>
+                    {/* Connector line to center */}
+                    <div className={`absolute top-1/2 -translate-y-1/2 w-12 h-px bg-slate-200 dark:bg-slate-700 hidden md:block ${isEven ? '-right-12' : '-left-12'}`}></div>
                   </div>
                 </div>
-              </div>
 
-              {/* Empty space for the other side of the timeline */}
-              <div className="hidden md:block md:w-[45%]"></div>
-            </div>
-          ))}
+                {/* Center Node */}
+                <div className="absolute left-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-orange-400 flex items-center justify-center text-white shadow-lg border-4 border-white dark:border-slate-700 z-10 timeline-dot">
+                  <span className="text-[10px] font-black">{idx + 1}</span>
+                </div>
+
+                {/* Spacer for the other side */}
+                <div className="w-1/2"></div>
+              </div>
+            );
+          })}
         </div>
 
-        <div className="mt-16 flex justify-center no-print">
-          <button 
-            onClick={addStep}
-            className="flex items-center gap-3 px-8 py-4 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl shadow-lg shadow-orange-200 dark:shadow-none transition-all font-bold uppercase tracking-widest active:scale-95"
-          >
-            <i className="fa-solid fa-plus"></i>
-            Add Delay Point
-          </button>
+        {/* Add Step Form - Centered and Styled as an Interactive Node */}
+        <div className="mt-16 flex flex-col items-center z-10 no-print timeline-step">
+          <div className="w-10 h-10 rounded-full bg-slate-50 dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-400 mb-6 shadow-inner timeline-dot">
+            <i className="fa-solid fa-plus text-xs"></i>
+          </div>
+          <form onSubmit={addStep} className="w-full max-w-2xl p-6 bg-white dark:bg-slate-900 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap gap-4 items-end">
+            <div className="flex-1 min-w-[240px]">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Event Label</label>
+              <input 
+                type="text" 
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+                placeholder="e.g. Technical handover delayed"
+                className="w-full text-sm p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-orange-400 transition-all"
+              />
+            </div>
+            <div className="w-28">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Value</label>
+              <input 
+                type="number" 
+                value={newDuration}
+                onChange={(e) => setNewDuration(Number(e.target.value))}
+                className="w-full text-sm p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none"
+              />
+            </div>
+            <div className="w-24">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Unit</label>
+              <select 
+                value={newUnit}
+                onChange={(e) => setNewUnit(e.target.value)}
+                className="w-full text-sm p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none cursor-pointer"
+              >
+                <option value="mins">Mins</option>
+                <option value="hrs">Hrs</option>
+                <option value="days">Days</option>
+              </select>
+            </div>
+            <button 
+              type="submit"
+              className="bg-orange-500 hover:bg-orange-600 text-white px-6 h-[46px] rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg hover:shadow-orange-500/20"
+            >
+              Add Node
+            </button>
+          </form>
+        </div>
+
+        {/* End Summary - Always Centered */}
+        <div className="mt-16 flex flex-col items-center z-10 timeline-step">
+          <div className="w-14 h-14 rounded-full bg-green-500 flex items-center justify-center text-white shadow-2xl border-4 border-white dark:border-slate-700 timeline-dot">
+            <i className="fa-solid fa-hourglass-end text-lg"></i>
+          </div>
+          <div className="mt-6 p-6 bg-green-50 dark:bg-green-950/40 rounded-3xl border border-green-100 dark:border-green-900/40 text-center shadow-md max-w-sm">
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-green-600 dark:text-green-500 mb-2">Accumulated System Latency</p>
+            <p className="text-3xl font-black text-green-900 dark:text-green-100">{totalTime} <span className="text-sm font-bold opacity-60">Total Units</span></p>
+          </div>
         </div>
       </div>
     </div>
