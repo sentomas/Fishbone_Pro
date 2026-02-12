@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { CategoryType, Cause, AnalysisMethod, ChecklistItem, DelayStep } from './types';
 import { FishboneDiagram } from './components/FishboneDiagram';
@@ -136,12 +137,10 @@ const App: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  // Improved helper to convert Fishbone SVG to PNG Blob for docx with Tainted Canvas handling
   const getFishboneImageBlob = async (): Promise<Blob | null> => {
     const svg = document.getElementById('fishbone-svg') as unknown as SVGSVGElement;
     if (!svg) return null;
 
-    // We clone the SVG and potentially sanitize it, but foreignObject is the issue
     const serializer = new XMLSerializer();
     const svgString = serializer.serializeToString(svg);
     const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
@@ -161,13 +160,12 @@ const App: React.FC = () => {
           ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           
-          // Using toDataURL first to check for tainting if toBlob fails
           canvas.toBlob((blob) => {
             URL.revokeObjectURL(url);
             resolve(blob);
           }, 'image/png');
         } catch (e) {
-          console.warn("Image capture blocked by browser security (Tainted Canvas). The Word document will still generate without the diagram image.");
+          console.warn("Image capture blocked by browser security (Tainted Canvas).");
           URL.revokeObjectURL(url);
           resolve(null);
         }
@@ -181,14 +179,13 @@ const App: React.FC = () => {
   };
 
   const exportToWord = async () => {
-    // Show a loading state or similar feedback as this takes time
     const fishboneBlob = await getFishboneImageBlob();
     const fishboneUint8Array = fishboneBlob ? new Uint8Array(await fishboneBlob.arrayBuffer()) : null;
 
-    // --- Prepare Document Sections (Avoids Spread Syntax Issues) ---
-
-    // 1. Fishbone Image or Fallback
-    const fishboneSection = fishboneUint8Array ? [
+    // Build sections with strict object parameters to avoid undefined errors
+    
+    // 1. Fishbone Image
+    const fishboneParagraphs = fishboneUint8Array ? [
       new Paragraph({
         children: [
           new ImageRun({
@@ -209,40 +206,55 @@ const App: React.FC = () => {
       })
     ];
 
-    // 2. Checklist Section
-    const checklistSection = checklist.length > 0 ? checklist.map(item => (
+    // 2. Checklist
+    const checklistParagraphs = checklist.length > 0 ? checklist.map(item => (
       new Paragraph({
         children: [
           new TextRun({ text: item.completed ? "✓ " : "○ ", bold: true }),
+          new TextRun({ text: "  " }), // Spacer
           new TextRun({ text: item.text, strike: item.completed, color: item.completed ? "94A3B8" : "000000" }),
         ],
       })
     )) : [new Paragraph({ children: [new TextRun({ text: "No verification tasks added.", italics: true, color: "94A3B8" })] })];
 
-    // 3. Five Whys Section
-    const fiveWhysSection = fiveWhys.map((why, idx) => (
+    // 3. Five Whys
+    const fiveWhysParagraphs = fiveWhys.map((why, idx) => (
       new Paragraph({
         children: [
           new TextRun({ text: `Drill-down Level ${idx + 1}: `, bold: true }),
-          new TextRun(why || "(Branch not documented)")
+          new TextRun({ text: why || "(Branch not documented)" })
         ],
         indent: { left: 400 * idx },
         spacing: { before: 200 },
       })
     ));
 
-    // 4. Delay/Timeline Rows
+    // 4. Timeline
     const timelineRows = delaySteps.map((step, idx) => (
       new TableRow({
         children: [
-          new TableCell({ children: [new Paragraph(String(idx + 1))] }),
-          new TableCell({ children: [new Paragraph(step.label)] }),
-          new TableCell({ children: [new Paragraph(`${step.duration} ${step.unit}`)] }),
+          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: String(idx + 1) })] })] }),
+          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: step.label })] })] }),
+          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${step.duration} ${step.unit}` })] })] }),
         ],
       })
     ));
 
-    // --- Build Document ---
+    // 5. Causal Summary Rows
+    const causalRows = Object.values(CategoryType).map(cat => {
+      const catCauses = causes.filter(c => c.category === cat);
+      return new TableRow({
+        children: [
+          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: cat })] })] }),
+          new TableCell({ 
+            children: catCauses.length > 0 
+              ? catCauses.map(c => new Paragraph({ children: [new TextRun({ text: `• ${c.text}` })], spacing: { before: 50, after: 50 } }))
+              : [new Paragraph({ children: [new TextRun({ text: "(None identified)", italics: true, color: "94A3B8" })] })]
+          }),
+        ],
+      });
+    });
+
     const doc = new Document({
       sections: [{
         properties: {},
@@ -255,7 +267,7 @@ const App: React.FC = () => {
           new Paragraph({
             children: [
               new TextRun({ text: "Generated on: ", bold: true }),
-              new TextRun(new Date().toLocaleString()),
+              new TextRun({ text: new Date().toLocaleString() }),
             ],
             spacing: { after: 400 },
           }),
@@ -265,7 +277,7 @@ const App: React.FC = () => {
             heading: HeadingLevel.HEADING_2,
           }),
           new Paragraph({
-            text: problem || "No problem statement defined.",
+            children: [new TextRun({ text: problem || "No problem statement defined." })],
             border: {
               top: { style: BorderStyle.SINGLE, size: 1, color: "E2E8F0" },
               bottom: { style: BorderStyle.SINGLE, size: 1, color: "E2E8F0" },
@@ -275,15 +287,13 @@ const App: React.FC = () => {
             spacing: { before: 200, after: 400 },
           }),
 
-          // Fishbone Diagram
           new Paragraph({
             text: "1. Ishikawa (Fishbone) Analysis",
             heading: HeadingLevel.HEADING_2,
             spacing: { before: 400 },
           }),
-          ...fishboneSection,
+          ...fishboneParagraphs,
 
-          // Causal Summary Table
           new Paragraph({
             text: "Categorized Causal Distribution",
             heading: HeadingLevel.HEADING_3,
@@ -298,37 +308,23 @@ const App: React.FC = () => {
                   new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Identified Potential Causes", bold: true })] })], shading: { fill: "F8FAFC" } }),
                 ],
               }),
-              ...Object.values(CategoryType).map(cat => {
-                const catCauses = causes.filter(c => c.category === cat);
-                return new TableRow({
-                  children: [
-                    new TableCell({ children: [new Paragraph(cat)] }),
-                    new TableCell({ 
-                      children: catCauses.length > 0 
-                        ? catCauses.map(c => new Paragraph({ text: `• ${c.text}`, spacing: { before: 50, after: 50 } }))
-                        : [new Paragraph({ children: [new TextRun({ text: "(None identified)", italics: true, color: "94A3B8" })] })]
-                    }),
-                  ],
-                });
-              }),
+              ...causalRows,
             ],
           }),
 
-          // Verification Checklist
           new Paragraph({
             text: "Tactical Verification Checklist",
             heading: HeadingLevel.HEADING_3,
             spacing: { before: 400 },
           }),
-          ...checklistSection,
+          ...checklistParagraphs,
 
-          // 5 Whys
           new Paragraph({
             text: "2. Systematic Drill-down (5 Whys)",
             heading: HeadingLevel.HEADING_2,
             pageBreakBefore: true,
           }),
-          ...fiveWhysSection,
+          ...fiveWhysParagraphs,
           
           new Paragraph({
             children: [
@@ -338,7 +334,6 @@ const App: React.FC = () => {
             spacing: { before: 600 },
           }),
 
-          // Timeline
           new Paragraph({
             text: "3. Chronological Latency Pathway",
             heading: HeadingLevel.HEADING_2,
@@ -553,14 +548,12 @@ const App: React.FC = () => {
                 JSON
              </button>
 
-             <button onClick={exportToWord} className="text-[10px] font-bold px-4 py-2 bg-indigo-600 text-white rounded-xl shadow-lg hover:bg-indigo-700 transition-all flex items-center gap-2 uppercase tracking-widest">
-                <i className="fa-solid fa-file-word"></i>
-                Export Word
+             <button onClick={exportToWord} title="Export as Word" className="w-10 h-10 flex items-center justify-center bg-indigo-600 text-white rounded-xl shadow-lg hover:bg-indigo-700 transition-all">
+                <i className="fa-solid fa-file-word text-lg"></i>
              </button>
 
-             <button onClick={() => window.print()} className="text-[10px] font-bold px-4 py-2 border border-indigo-200 dark:border-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-xl hover:bg-indigo-50 transition-all flex items-center gap-2 uppercase tracking-widest">
-                <i className="fa-solid fa-file-pdf"></i>
-                Save as PDF
+             <button onClick={() => window.print()} title="Save as PDF" className="w-10 h-10 flex items-center justify-center border border-indigo-200 dark:border-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-xl hover:bg-indigo-50 transition-all">
+                <i className="fa-solid fa-file-pdf text-lg"></i>
              </button>
           </div>
         </header>
