@@ -2,7 +2,11 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { CategoryType } from "../types";
 
-export async function suggestCauses(problem: string) {
+export async function suggestCauses(
+  problem: string,
+  categories: string[] = Object.values(CategoryType),
+  domainName: string = "Root Cause Analysis"
+) {
   if (!problem) return [];
 
   // Create a new instance right before the call as per guidelines
@@ -11,7 +15,9 @@ export async function suggestCauses(problem: string) {
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Suggest 6 potential root causes for this problem statement using the Fishbone (Ishikawa) method: "${problem}". 
-    Categorize them into exactly these categories: ${Object.values(CategoryType).join(", ")}.`,
+    Context domain: ${domainName}.
+    Categorize each suggested cause into exactly one of these categories: ${categories.join(", ")}.
+    Provide realistic, actionable root causes specific to ${domainName}.`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -22,8 +28,8 @@ export async function suggestCauses(problem: string) {
             items: {
               type: Type.OBJECT,
               properties: {
-                category: { type: Type.STRING, enum: Object.values(CategoryType) },
-                reason: { type: Type.STRING, description: "A concise potential cause (max 10 words)" }
+                category: { type: Type.STRING, enum: categories },
+                reason: { type: Type.STRING, description: "A concise potential root cause (max 12 words)" }
               },
               required: ["category", "reason"]
             }

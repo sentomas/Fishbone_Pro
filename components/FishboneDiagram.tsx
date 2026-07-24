@@ -1,11 +1,13 @@
 
 import React, { useState } from 'react';
-import { CategoryType, Cause } from '../types';
+import { Cause, CategoryType } from '../types';
 
 interface FishboneDiagramProps {
   problem: string;
   causes: Cause[];
-  onDrop: (causeId: string, category: CategoryType) => void;
+  activeCategories?: string[];
+  frameworkName?: string;
+  onDrop: (causeId: string, category: string) => void;
   onDeleteCause: (id: string) => void;
   onEditCause: (id: string, newText: string) => void;
   onToggleWorkingOn?: (id: string) => void;
@@ -13,22 +15,31 @@ interface FishboneDiagramProps {
 }
 
 export const FishboneDiagram: React.FC<FishboneDiagramProps> = ({ 
-  problem, causes, onDrop, onDeleteCause, onEditCause, onToggleWorkingOn, theme
+  problem, 
+  causes, 
+  activeCategories = Object.values(CategoryType),
+  frameworkName,
+  onDrop, 
+  onDeleteCause, 
+  onEditCause, 
+  onToggleWorkingOn, 
+  theme
 }) => {
-  const [activeDropZone, setActiveDropZone] = useState<CategoryType | null>(null);
+  const [activeDropZone, setActiveDropZone] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
 
-  const categories = [
-    { type: CategoryType.PEOPLE, x: 180, y: 80, anchor: 'top' },
-    { type: CategoryType.METHODS, x: 440, y: 80, anchor: 'top' },
-    { type: CategoryType.MACHINES, x: 700, y: 80, anchor: 'top' },
-    { type: CategoryType.MATERIALS, x: 180, y: 570, anchor: 'bottom' },
-    { type: CategoryType.MEASUREMENTS, x: 440, y: 570, anchor: 'bottom' },
-    { type: CategoryType.ENVIRONMENT, x: 700, y: 570, anchor: 'bottom' },
+  // Map activeCategories (expecting 6 items) to 3 top and 3 bottom positions
+  const categoryPositions = [
+    { type: activeCategories[0] || 'Category 1', x: 180, y: 80, anchor: 'top' },
+    { type: activeCategories[1] || 'Category 2', x: 440, y: 80, anchor: 'top' },
+    { type: activeCategories[2] || 'Category 3', x: 700, y: 80, anchor: 'top' },
+    { type: activeCategories[3] || 'Category 4', x: 180, y: 570, anchor: 'bottom' },
+    { type: activeCategories[4] || 'Category 5', x: 440, y: 570, anchor: 'bottom' },
+    { type: activeCategories[5] || 'Category 6', x: 700, y: 570, anchor: 'bottom' },
   ];
 
-  const handleDragOver = (e: React.DragEvent, category: CategoryType) => {
+  const handleDragOver = (e: React.DragEvent, category: string) => {
     e.preventDefault();
     setActiveDropZone(category);
   };
@@ -37,7 +48,7 @@ export const FishboneDiagram: React.FC<FishboneDiagramProps> = ({
     setActiveDropZone(null);
   };
 
-  const handleOnDrop = (e: React.DragEvent, category: CategoryType) => {
+  const handleOnDrop = (e: React.DragEvent, category: string) => {
     e.preventDefault();
     const causeId = e.dataTransfer.getData('causeId');
     onDrop(causeId, category);
@@ -64,7 +75,14 @@ export const FishboneDiagram: React.FC<FishboneDiagramProps> = ({
   const isDark = theme === 'dark';
 
   return (
-    <div className="w-full h-full min-h-[650px] flex items-center justify-center bg-white dark:bg-slate-900/50 rounded-xl shadow-inner border border-slate-100 dark:border-slate-800 transition-colors duration-300 overflow-hidden p-4">
+    <div className="w-full h-full min-h-[650px] flex flex-col items-center justify-center bg-white dark:bg-slate-900/50 rounded-xl shadow-inner border border-slate-100 dark:border-slate-800 transition-colors duration-300 overflow-hidden p-4 relative">
+      {frameworkName && (
+        <div className="no-print absolute top-3 left-4 flex items-center gap-2 px-3 py-1 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/60 rounded-full text-[10px] font-extrabold uppercase tracking-widest text-indigo-700 dark:text-indigo-300">
+          <i className="fa-solid fa-layer-group text-xs"></i>
+          <span>{frameworkName}</span>
+        </div>
+      )}
+
       <svg
         id="fishbone-svg"
         viewBox="0 0 1000 650"
@@ -83,7 +101,7 @@ export const FishboneDiagram: React.FC<FishboneDiagramProps> = ({
           </div>
         </foreignObject>
 
-        {categories.map((cat) => {
+        {categoryPositions.map((cat) => {
           const isTop = cat.anchor === 'top';
           const isActive = activeDropZone === cat.type;
           
@@ -94,7 +112,7 @@ export const FishboneDiagram: React.FC<FishboneDiagramProps> = ({
                 y1={cat.y}
                 x2={cat.x + 60}
                 y2={spineY}
-                stroke={isActive ? (isDark ? '#818cf8' : '#6366f1') : (isDark ? '#1e293b' : '#f1f5f9')}
+                stroke={isActive ? (isDark ? '#818cf8' : '#6366f1') : (isDark ? '#334155' : '#cbd5e1')}
                 strokeWidth={isActive ? '8' : '5'}
                 className="transition-all duration-300"
               />
@@ -115,7 +133,7 @@ export const FishboneDiagram: React.FC<FishboneDiagramProps> = ({
                 x={cat.x}
                 y={isTop ? cat.y - 15 : cat.y + 30}
                 textAnchor="middle"
-                className={`text-[11px] font-bold uppercase tracking-widest transition-colors duration-300 ${isActive ? (isDark ? 'fill-indigo-400' : 'fill-indigo-600') : (isDark ? 'fill-slate-500' : 'fill-slate-400')}`}
+                className={`text-[10px] font-bold uppercase tracking-wider transition-colors duration-300 ${isActive ? (isDark ? 'fill-indigo-400' : 'fill-indigo-600') : (isDark ? 'fill-slate-400' : 'fill-slate-600')}`}
               >
                 {cat.type}
               </text>
@@ -200,3 +218,4 @@ export const FishboneDiagram: React.FC<FishboneDiagramProps> = ({
     </div>
   );
 };
+

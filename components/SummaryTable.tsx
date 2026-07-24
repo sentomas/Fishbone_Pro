@@ -1,13 +1,17 @@
 
 import React from 'react';
-import { CategoryType, Cause } from '../types';
+import { Cause, CategoryType } from '../types';
 
 interface SummaryTableProps {
   causes: Cause[];
+  activeCategories?: string[];
 }
 
-export const SummaryTable: React.FC<SummaryTableProps> = ({ causes }) => {
-  const categories = Object.values(CategoryType);
+export const SummaryTable: React.FC<SummaryTableProps> = ({ 
+  causes, 
+  activeCategories = Object.values(CategoryType) 
+}) => {
+  const categories = activeCategories;
   const assignedCauses = causes.filter(c => c.category !== null);
 
   if (assignedCauses.length === 0) {
