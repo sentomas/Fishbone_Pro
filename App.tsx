@@ -31,41 +31,95 @@ import {
   BorderStyle
 } from 'docx';
 
+const STORAGE_KEY = 'fishbone_pro_analysis_state_v1';
+
+const getInitialSavedState = () => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.warn("Could not parse saved state from localStorage:", e);
+  }
+  return null;
+};
+
 const App: React.FC = () => {
-  const [problem, setProblem] = useState<string>('REST API response time exceeded SLA (>5s) causing gateway timeouts during peak user traffic');
-  const [method, setMethod] = useState<AnalysisMethod>(AnalysisMethod.FISHBONE);
-  const [framework, setFramework] = useState<DomainFramework>('software');
+  const initialSavedState = getInitialSavedState();
+
+  const [problem, setProblem] = useState<string>(
+    initialSavedState?.problem ?? 'REST API response time exceeded SLA (>5s) causing gateway timeouts during peak user traffic'
+  );
+  const [method, setMethod] = useState<AnalysisMethod>(
+    initialSavedState?.method ?? AnalysisMethod.FISHBONE
+  );
+  const [framework, setFramework] = useState<DomainFramework>(
+    initialSavedState?.framework ?? 'software'
+  );
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     return (localStorage.getItem('theme') as 'light' | 'dark') || 'light';
   });
   
   // Fishbone State
-  const [causes, setCauses] = useState<Cause[]>([]);
+  const [causes, setCauses] = useState<Cause[]>(
+    initialSavedState?.causes ?? []
+  );
   const [newCauseText, setNewCauseText] = useState<string>('');
   
   // Checklist State
-  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
+  const [checklist, setChecklist] = useState<ChecklistItem[]>(
+    initialSavedState?.checklist ?? []
+  );
   
   // 5 Whys State
-  const [fiveWhys, setFiveWhys] = useState<string[]>(['', '', '', '', '']);
+  const [fiveWhys, setFiveWhys] = useState<string[]>(
+    initialSavedState?.fiveWhys ?? ['', '', '', '', '']
+  );
 
   // Delay Path State
-  const [delaySteps, setDelaySteps] = useState<DelayStep[]>([]);
+  const [delaySteps, setDelaySteps] = useState<DelayStep[]>(
+    initialSavedState?.delaySteps ?? []
+  );
 
-  // Toast / Modal States
+  // Toast / Modal / Save States
   const [copyToast, setCopyToast] = useState<string | null>(null);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState<boolean>(false);
+  const [lastAutoSave, setLastAutoSave] = useState<string | null>(null);
   
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Initialize with initial default software defect template on mount
+  // Initialize with default software template ONLY if no saved state exists
   useEffect(() => {
-    const defaultTemplate = SOFTWARE_DEFECT_TEMPLATES[0];
-    if (defaultTemplate && causes.length === 0) {
-      loadTemplate(defaultTemplate);
+    if (!initialSavedState) {
+      const defaultTemplate = SOFTWARE_DEFECT_TEMPLATES[0];
+      if (defaultTemplate && causes.length === 0) {
+        loadTemplate(defaultTemplate);
+      }
     }
   }, []);
+
+  // Auto-save effect whenever analysis state changes
+  useEffect(() => {
+    const dataToSave = {
+      problem,
+      framework,
+      method,
+      causes,
+      checklist,
+      fiveWhys,
+      delaySteps,
+      timestamp: new Date().toISOString()
+    };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
+      const now = new Date();
+      setLastAutoSave(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    } catch (e) {
+      console.warn("Auto-save to localStorage failed:", e);
+    }
+  }, [problem, framework, method, causes, checklist, fiveWhys, delaySteps]);
 
   useEffect(() => {
     localStorage.setItem('theme', theme);
@@ -185,7 +239,7 @@ const App: React.FC = () => {
       // Embed style block inside cloned SVG so foreignObject elements render cleanly on canvas
       const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
       styleEl.textContent = `
-        * { box-sizing: border-box; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+        * { box-sizing: border-box; font-family: 'Poppins', ui-sans-serif, system-ui, -apple-system, sans-serif; }
         .flex { display: flex; }
         .flex-col { flex-direction: column; }
         .items-center { align-items: center; }
@@ -368,6 +422,41 @@ const App: React.FC = () => {
     } catch (err) {
       console.error("Copy failed:", err);
       alert("Unable to copy automatically. Please copy from the screen.");
+    }
+  };
+
+  const exportProject = () => {
+    const data = {
+      problem,
+      framework,
+      method,
+      causes,
+      fiveWhys,
+      checklist,
+      delaySteps,
+      version: "1.4",
+      timestamp: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const safeProblem = problem.slice(0, 20).replace(/\s+/g, '_') || 'Project';
+    link.download = `FishbonePro_${framework}_${safeProblem}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const clearSavedState = () => {
+    if (confirm("Are you sure you want to reset and start a fresh analysis? Your current analysis data will be cleared.")) {
+      setProblem('');
+      setCauses([]);
+      setChecklist([]);
+      setFiveWhys(['', '', '', '', '']);
+      setDelaySteps([]);
+      localStorage.removeItem(STORAGE_KEY);
+      setLastAutoSave(null);
+      showToast("Cleared analysis and reset storage.");
     }
   };
 
@@ -755,6 +844,12 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-2">
+             {/* Auto-save Status Badge */}
+             <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200/80 dark:border-emerald-800/60 rounded-full text-[10px] font-extrabold text-emerald-700 dark:text-emerald-300 shadow-xs" title="Analysis automatically saved to local storage">
+               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+               <span>Auto-saved {lastAutoSave ? `at ${lastAutoSave}` : ''}</span>
+             </div>
+
              <button onClick={toggleTheme} className="w-9 h-9 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition-all">
                <i className={`fa-solid ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
              </button>
@@ -783,6 +878,15 @@ const App: React.FC = () => {
              <button onClick={exportProject} className="text-[10px] font-bold px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5 uppercase tracking-wider">
                 <i className="fa-solid fa-floppy-disk text-indigo-500"></i>
                 JSON
+             </button>
+
+             <button 
+               onClick={clearSavedState}
+               title="Reset Analysis & Clear Saved Data"
+               className="text-[10px] font-bold px-2.5 py-2 border border-red-200 dark:border-red-900/60 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 transition-all flex items-center gap-1 uppercase tracking-wider"
+             >
+               <i className="fa-solid fa-rotate-left text-xs"></i>
+               <span className="hidden md:inline">Reset</span>
              </button>
 
              <button onClick={exportToWord} title="Export as Word" className="w-9 h-9 flex items-center justify-center bg-indigo-600 text-white rounded-xl shadow-md hover:bg-indigo-700 transition-all">
