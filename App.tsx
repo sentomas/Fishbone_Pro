@@ -171,7 +171,92 @@ const App: React.FC = () => {
     }
   };
 
-  // Copy Ishikawa / Fishbone Analysis Summary to Clipboard
+  const getFishboneImageBlob = async (): Promise<Blob | null> => {
+    const svg = document.getElementById('fishbone-svg') as unknown as SVGSVGElement;
+    if (!svg) return null;
+
+    try {
+      const clonedSvg = svg.cloneNode(true) as SVGSVGElement;
+      
+      // Remove no-print UI buttons inside cloned SVG
+      const noPrintElems = clonedSvg.querySelectorAll('.no-print');
+      noPrintElems.forEach(el => el.remove());
+
+      // Embed style block inside cloned SVG so foreignObject elements render cleanly on canvas
+      const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+      styleEl.textContent = `
+        * { box-sizing: border-box; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+        .flex { display: flex; }
+        .flex-col { flex-direction: column; }
+        .items-center { align-items: center; }
+        .justify-center { justify-content: center; }
+        .justify-start { justify-content: flex-start; }
+        .justify-end { justify-content: flex-end; }
+        .text-center { text-align: center; }
+        .w-full { width: 100%; }
+        .h-full { height: 100%; }
+        .gap-1 { gap: 4px; }
+        .gap-1.5 { gap: 6px; }
+        .p-2 { padding: 8px; }
+        .rounded-md { border-radius: 6px; }
+        .bg-white { background-color: #ffffff; }
+        .dark .bg-slate-800 { background-color: #1e293b; }
+        .border { border-style: solid; border-width: 1px; }
+        .border-slate-200 { border-color: #e2e8f0; }
+        .border-l-4 { border-left-width: 4px; }
+        .border-l-indigo-400 { border-left-color: #818cf8; }
+        .border-l-amber-500 { border-left-color: #f59e0b; }
+        .text-slate-700 { color: #334155; }
+        .text-slate-300 { color: #cbd5e1; }
+        .text-\\[10px\\] { font-size: 10px; }
+        .font-bold { font-weight: 700; }
+        .uppercase { text-transform: uppercase; }
+        .shadow-sm { box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); }
+      `;
+      clonedSvg.insertBefore(styleEl, clonedSvg.firstChild);
+
+      const serializer = new XMLSerializer();
+      const svgString = serializer.serializeToString(clonedSvg);
+      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+      
+      return new Promise((resolve) => {
+        const canvas = document.createElement('canvas');
+        const img = new Image();
+        canvas.width = 1600; 
+        canvas.height = 1000;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve(null); return; }
+
+        img.onload = () => {
+          try {
+            ctx.fillStyle = theme === 'dark' ? '#0f172a' : '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            
+            canvas.toBlob((blob) => {
+              URL.revokeObjectURL(url);
+              resolve(blob);
+            }, 'image/png');
+          } catch (e) {
+            console.warn("Image capture blocked by browser security.", e);
+            URL.revokeObjectURL(url);
+            resolve(null);
+          }
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          resolve(null);
+        };
+        img.src = url;
+      });
+    } catch (err) {
+      console.warn("Failed cloning SVG:", err);
+      return null;
+    }
+  };
+
+  // Copy Ishikawa / Fishbone Analysis Summary & Diagram Image to Clipboard
   const copyToClipboard = async () => {
     const activeCats = FRAMEWORK_CATEGORIES[framework].categories;
     let markdown = `# ISHIKAWA (FISHBONE) ROOT CAUSE ANALYSIS\n`;
@@ -215,6 +300,59 @@ const App: React.FC = () => {
       });
     }
 
+    // Capture Fishbone diagram image
+    const fishboneBlob = await getFishboneImageBlob();
+
+    if (fishboneBlob && navigator.clipboard && typeof navigator.clipboard.write === 'function') {
+      try {
+        const textBlob = new Blob([markdown], { type: 'text/plain' });
+
+        let base64Img = '';
+        try {
+          base64Img = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const res = reader.result as string;
+              resolve(res ? res.split(',')[1] : '');
+            };
+            reader.readAsDataURL(fishboneBlob);
+          });
+        } catch (e) {
+          console.warn("Base64 string generation failed:", e);
+        }
+
+        const htmlContent = `
+          <div style="font-family: system-ui, -apple-system, sans-serif; color: #1e293b; max-width: 800px; padding: 16px;">
+            <h2 style="color: #4f46e5; margin-bottom: 8px;">${FRAMEWORK_CATEGORIES[framework].name} - Ishikawa Root Cause Analysis</h2>
+            <p style="font-size: 14px; color: #475569;"><strong>Problem Statement:</strong> ${problem || 'Unspecified Problem'}</p>
+            ${base64Img ? `<div style="margin: 20px 0; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; padding: 12px; background: #ffffff; text-align: center;"><img src="data:image/png;base64,${base64Img}" alt="Ishikawa Fishbone Diagram" style="max-width: 100%; height: auto; display: block; margin: 0 auto;" /></div>` : ''}
+            <pre style="background: #f8fafc; padding: 16px; border-radius: 8px; font-size: 12px; line-height: 1.5; border: 1px solid #e2e8f0; white-space: pre-wrap;">${markdown}</pre>
+          </div>
+        `;
+        const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+
+        const itemData: Record<string, Blob> = {
+          'image/png': fishboneBlob,
+          'text/plain': textBlob,
+          'text/html': htmlBlob,
+        };
+
+        await navigator.clipboard.write([new ClipboardItem(itemData)]);
+        showToast("Copied Ishikawa Diagram Image & Report to Clipboard!");
+        return;
+      } catch (clipErr) {
+        console.warn("ClipboardItem write failed, trying fallback image or text:", clipErr);
+        try {
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': fishboneBlob })]);
+          showToast("Copied Ishikawa Diagram Image to Clipboard!");
+          return;
+        } catch (imgErr) {
+          console.warn("Image write failed, falling back to writeText:", imgErr);
+        }
+      }
+    }
+
+    // Fallback text copy
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(markdown);
@@ -226,74 +364,11 @@ const App: React.FC = () => {
         document.execCommand("copy");
         document.body.removeChild(textArea);
       }
-      showToast("Copied Ishikawa Analysis to Clipboard!");
+      showToast("Copied Ishikawa Analysis Report to Clipboard!");
     } catch (err) {
       console.error("Copy failed:", err);
       alert("Unable to copy automatically. Please copy from the screen.");
     }
-  };
-
-  const exportProject = () => {
-    const data = {
-      problem,
-      framework,
-      method,
-      causes,
-      fiveWhys,
-      checklist,
-      delaySteps,
-      version: "1.4",
-      timestamp: new Date().toISOString()
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    const safeProblem = problem.slice(0, 20).replace(/\s+/g, '_') || 'Project';
-    link.download = `FishbonePro_${framework}_${safeProblem}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const getFishboneImageBlob = async (): Promise<Blob | null> => {
-    const svg = document.getElementById('fishbone-svg') as unknown as SVGSVGElement;
-    if (!svg) return null;
-
-    const serializer = new XMLSerializer();
-    const svgString = serializer.serializeToString(svg);
-    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(svgBlob);
-    
-    return new Promise((resolve) => {
-      const canvas = document.createElement('canvas');
-      const img = new Image();
-      canvas.width = 1600; 
-      canvas.height = 1000;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) { resolve(null); return; }
-
-      img.onload = () => {
-        try {
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          
-          canvas.toBlob((blob) => {
-            URL.revokeObjectURL(url);
-            resolve(blob);
-          }, 'image/png');
-        } catch (e) {
-          console.warn("Image capture blocked by browser security.");
-          URL.revokeObjectURL(url);
-          resolve(null);
-        }
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        resolve(null);
-      };
-      img.src = url;
-    });
   };
 
   const exportToWord = async () => {
