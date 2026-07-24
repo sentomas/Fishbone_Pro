@@ -188,17 +188,12 @@ export const FishboneDiagram: React.FC<FishboneDiagramProps> = ({
           const isActive = activeDropZone === cat.type;
           const categoryCauses = causes.filter((c) => c.category === cat.type);
           
-          // Auto-calculated category header badge dimensions
-          const categoryBadgeWidth = Math.max(130, Math.min(180, cat.type.length * (diagramFontSize * 0.7) + 32));
-          const categoryBadgeX = cat.x - categoryBadgeWidth / 2;
-          const categoryBadgeY = isTop ? cat.y - 32 : cat.y + 8;
-          const categoryBadgeHeight = Math.max(26, diagramFontSize + 14);
-
-          // Auto-calculated cause container dimensions
-          const containerWidth = Math.max(170, Math.min(220, 150 + diagramFontSize * 2.5));
+          // Auto-calculated category header badge & container dimensions
+          const badgeHeight = Math.max(34, diagramFontSize * 2 + 10);
+          const containerWidth = Math.max(180, Math.min(230, 160 + diagramFontSize * 2.5));
           const containerX = isTop ? cat.x - containerWidth / 2 + 15 : cat.x - containerWidth / 2 - 10;
-          const containerY = isTop ? cat.y + categoryBadgeHeight + 8 : cat.y - 225;
-          const containerHeight = isTop ? spineY - (cat.y + categoryBadgeHeight + 15) : 225 - categoryBadgeHeight;
+          const containerY = isTop ? cat.y + 12 : cat.y - 215;
+          const containerHeight = isTop ? spineY - cat.y - 20 : 210 - badgeHeight;
 
           return (
             <g key={cat.type}>
@@ -226,31 +221,34 @@ export const FishboneDiagram: React.FC<FishboneDiagramProps> = ({
                 className="cursor-pointer"
               />
 
-              {/* Auto-aligned Category Header Badge Box */}
-              <rect
-                x={categoryBadgeX}
-                y={categoryBadgeY}
-                width={categoryBadgeWidth}
-                height={categoryBadgeHeight}
-                rx="8"
-                fill={isActive ? (isDark ? '#312e81' : '#e0e7ff') : (isDark ? '#1e293b' : '#f8fafc')}
-                stroke={isActive ? (isDark ? '#818cf8' : '#4f46e5') : (isDark ? '#475569' : '#cbd5e1')}
-                strokeWidth="1.5"
-                className="transition-all duration-300 shadow-xs"
-              />
-              <text
-                x={cat.x}
-                y={categoryBadgeY + categoryBadgeHeight / 2 + (diagramFontSize * 0.35)}
-                textAnchor="middle"
-                style={{ fontFamily: "'Poppins', sans-serif", fontSize: `${Math.max(11, diagramFontSize + 1)}px` }}
-                className={`font-black uppercase tracking-wider pointer-events-none transition-colors duration-300 ${
-                  isActive 
-                    ? (isDark ? 'fill-indigo-300' : 'fill-indigo-700') 
-                    : (isDark ? 'fill-slate-200' : 'fill-slate-800')
-                }`}
-              >
-                {cat.type}
-              </text>
+              {/* Auto-aligned & Responsive Category Header Badge Box (Auto-wraps long category names like Integration & Dependencies) */}
+              {(() => {
+                const categoryBadgeWidth = Math.max(140, Math.min(230, cat.type.length * (diagramFontSize * 0.65) + 32));
+                const categoryBadgeHeight = Math.max(34, diagramFontSize * 2 + 10);
+                const categoryBadgeX = cat.x - categoryBadgeWidth / 2;
+                const categoryBadgeY = isTop ? cat.y - categoryBadgeHeight - 2 : cat.y + 6;
+
+                return (
+                  <foreignObject
+                    x={categoryBadgeX}
+                    y={categoryBadgeY}
+                    width={categoryBadgeWidth}
+                    height={categoryBadgeHeight}
+                    className="overflow-visible"
+                  >
+                    <div 
+                      className={`w-full h-full flex items-center justify-center text-center px-2.5 py-1 rounded-lg border shadow-xs transition-all duration-300 font-extrabold uppercase leading-tight select-none ${
+                        isActive 
+                          ? (isDark ? 'bg-indigo-950/90 border-indigo-400 text-indigo-200' : 'bg-indigo-100 border-indigo-500 text-indigo-900')
+                          : (isDark ? 'bg-slate-800/95 border-slate-700 text-slate-100' : 'bg-slate-50 border-slate-300 text-slate-800')
+                      }`}
+                      style={{ fontFamily: "'Poppins', sans-serif", fontSize: `${Math.max(10, diagramFontSize)}px` }}
+                    >
+                      {cat.type}
+                    </div>
+                  </foreignObject>
+                );
+              })()}
 
               {/* Dynamic Cause Cards Container */}
               <foreignObject

@@ -917,6 +917,32 @@ const App: React.FC = () => {
                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Subject Defect Statement</h3>
                 <p className="text-xl font-bold text-slate-800">{problem || "No problem statement defined."}</p>
               </div>
+
+              {/* PDF Table of Contents - Generated when analysis contains all three modes (Fishbone, 5 Whys, and Latency) */}
+              {(causes.length > 0 && fiveWhys.some(w => w.trim().length > 0) && delaySteps.length > 0) && (
+                <div className="pdf-toc-container mt-8 p-6 bg-slate-50 rounded-2xl border border-slate-200">
+                  <h3 className="pdf-toc-title text-sm font-black text-slate-900 uppercase tracking-wider border-b-2 border-indigo-600 pb-2 mb-4">
+                    Document Table of Contents
+                  </h3>
+                  <ul className="pdf-toc-list space-y-3">
+                    <li className="pdf-toc-item flex items-center justify-between font-bold text-sm text-slate-800">
+                      <span>1. Ishikawa Fishbone Diagram ({activeFrameworkInfo.name})</span>
+                      <span className="pdf-toc-dots flex-1 border-b-2 border-dotted border-slate-300 mx-3"></span>
+                      <span className="text-xs font-extrabold uppercase text-indigo-600">Section 1</span>
+                    </li>
+                    <li className="pdf-toc-item flex items-center justify-between font-bold text-sm text-slate-800">
+                      <span>2. Multi-Level 5 Whys Root Cause Analysis</span>
+                      <span className="pdf-toc-dots flex-1 border-b-2 border-dotted border-slate-300 mx-3"></span>
+                      <span className="text-xs font-extrabold uppercase text-indigo-600">Section 2</span>
+                    </li>
+                    <li className="pdf-toc-item flex items-center justify-between font-bold text-sm text-slate-800">
+                      <span>3. Latency & Delay Pathway Timeline</span>
+                      <span className="pdf-toc-dots flex-1 border-b-2 border-dotted border-slate-300 mx-3"></span>
+                      <span className="text-xs font-extrabold uppercase text-indigo-600">Section 3</span>
+                    </li>
+                  </ul>
+                </div>
+              )}
             </div>
 
             {/* Ishikawa Section */}
