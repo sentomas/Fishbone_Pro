@@ -93,13 +93,6 @@ export interface FishboneData {
   checklist: ChecklistItem[];
 }
 
-export interface SuggestionResponse {
-  suggestions: {
-    category: string;
-    reason: string;
-  }[];
-}
-
 export interface SoftwareDefectTemplate {
   id: string;
   title: string;

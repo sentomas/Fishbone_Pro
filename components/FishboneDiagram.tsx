@@ -11,7 +11,8 @@ interface FishboneDiagramProps {
   onDeleteCause: (id: string) => void;
   onEditCause: (id: string, newText: string) => void;
   onToggleWorkingOn?: (id: string) => void;
-  theme: 'light' | 'dark';
+  onCopySummary?: () => void;
+  theme?: 'light' | 'dark';
 }
 
 export const FishboneDiagram: React.FC<FishboneDiagramProps> = ({ 
@@ -23,6 +24,7 @@ export const FishboneDiagram: React.FC<FishboneDiagramProps> = ({
   onDeleteCause, 
   onEditCause, 
   onToggleWorkingOn, 
+  onCopySummary,
   theme
 }) => {
   const [activeDropZone, setActiveDropZone] = useState<string | null>(null);
@@ -76,11 +78,24 @@ export const FishboneDiagram: React.FC<FishboneDiagramProps> = ({
 
   return (
     <div className="w-full h-full min-h-[650px] flex flex-col items-center justify-center bg-white dark:bg-slate-900/50 rounded-xl shadow-inner border border-slate-100 dark:border-slate-800 transition-colors duration-300 overflow-hidden p-4 relative">
-      {frameworkName && (
-        <div className="no-print absolute top-3 left-4 flex items-center gap-2 px-3 py-1 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/60 rounded-full text-[10px] font-extrabold uppercase tracking-widest text-indigo-700 dark:text-indigo-300">
-          <i className="fa-solid fa-layer-group text-xs"></i>
-          <span>{frameworkName}</span>
-        </div>
+      <div className="no-print absolute top-3 left-4 flex items-center gap-2">
+        {frameworkName && (
+          <div className="flex items-center gap-2 px-3 py-1 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/60 rounded-full text-[10px] font-extrabold uppercase tracking-widest text-indigo-700 dark:text-indigo-300">
+            <i className="fa-solid fa-layer-group text-xs"></i>
+            <span>{frameworkName}</span>
+          </div>
+        )}
+      </div>
+
+      {onCopySummary && (
+        <button
+          onClick={onCopySummary}
+          title="Copy Ishikawa diagram summary to clipboard"
+          className="no-print absolute top-3 right-4 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5"
+        >
+          <i className="fa-solid fa-copy"></i>
+          <span>Copy to Clipboard</span>
+        </button>
       )}
 
       <svg

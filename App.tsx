@@ -10,7 +10,6 @@ import {
   SoftwareDefectTemplate 
 } from './types';
 import { SOFTWARE_DEFECT_TEMPLATES } from './data/softwareDefectTemplates';
-import { suggestCauses, suggestFiveWhys } from './services/geminiService';
 import { FishboneDiagram } from './components/FishboneDiagram';
 import { FiveWhysAnalysis } from './components/FiveWhysAnalysis';
 import { DelayPathAnalysis } from './components/DelayPathAnalysis';
@@ -53,8 +52,8 @@ const App: React.FC = () => {
   // Delay Path State
   const [delaySteps, setDelaySteps] = useState<DelayStep[]>([]);
 
-  // AI & Modal States
-  const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
+  // Toast / Modal States
+  const [copyToast, setCopyToast] = useState<string | null>(null);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState<boolean>(false);
   
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
@@ -79,6 +78,11 @@ const App: React.FC = () => {
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+
+  const showToast = (message: string) => {
+    setCopyToast(message);
+    setTimeout(() => setCopyToast(null), 3000);
   };
 
   const loadTemplate = (template: SoftwareDefectTemplate) => {
@@ -167,49 +171,65 @@ const App: React.FC = () => {
     }
   };
 
-  const handleAiSuggestCauses = async () => {
-    if (!problem.trim()) {
-      alert("Please enter a defect problem statement first.");
-      return;
-    }
-    setIsAiLoading(true);
-    try {
-      const activeCatInfo = FRAMEWORK_CATEGORIES[framework];
-      const suggestions = await suggestCauses(problem, activeCatInfo.categories, activeCatInfo.name);
-      if (suggestions && suggestions.length > 0) {
-        const newCauses: Cause[] = suggestions.map((s: { category: string; reason: string }) => ({
-          id: Math.random().toString(36).substr(2, 9),
-          text: s.reason,
-          category: s.category,
-          isWorkingOn: false
-        }));
-        setCauses(prev => [...prev, ...newCauses]);
-      } else {
-        alert("Gemini returned no suggestions. Check your problem statement.");
-      }
-    } catch (e) {
-      console.error("AI Cause suggestion failed:", e);
-      alert("Failed to fetch AI suggestions. Please ensure Gemini API Key is configured.");
-    } finally {
-      setIsAiLoading(false);
-    }
-  };
+  // Copy Ishikawa / Fishbone Analysis Summary to Clipboard
+  const copyToClipboard = async () => {
+    const activeCats = FRAMEWORK_CATEGORIES[framework].categories;
+    let markdown = `# ISHIKAWA (FISHBONE) ROOT CAUSE ANALYSIS\n`;
+    markdown += `Framework: ${FRAMEWORK_CATEGORIES[framework].name}\n`;
+    markdown += `Problem Statement: ${problem || 'Unspecified Problem'}\n\n`;
+    markdown += `--- CATEGORIZED CAUSES ---\n`;
 
-  const handleAiSuggestFiveWhys = async () => {
-    if (!problem.trim()) {
-      alert("Please enter a defect problem statement first.");
-      return;
-    }
-    setIsAiLoading(true);
-    try {
-      const steps = await suggestFiveWhys(problem);
-      if (steps && steps.length > 0) {
-        setFiveWhys(steps);
+    activeCats.forEach(cat => {
+      const catCauses = causes.filter(c => c.category === cat);
+      markdown += `\n[ ${cat.toUpperCase()} ]\n`;
+      if (catCauses.length === 0) {
+        markdown += `  (No causes mapped)\n`;
+      } else {
+        catCauses.forEach(c => {
+          markdown += `  • ${c.text}${c.isWorkingOn ? ' [INVESTIGATING]' : ''}\n`;
+        });
       }
-    } catch (e) {
-      console.error("AI 5 Whys suggestion failed:", e);
-    } finally {
-      setIsAiLoading(false);
+    });
+
+    const unassigned = causes.filter(c => !c.category);
+    if (unassigned.length > 0) {
+      markdown += `\n[ UNASSIGNED CANDIDATE CAUSES ]\n`;
+      unassigned.forEach(c => {
+        markdown += `  • ${c.text}\n`;
+      });
+    }
+
+    if (checklist.length > 0) {
+      markdown += `\n--- VERIFICATION CHECKLIST ---\n`;
+      checklist.forEach(item => {
+        markdown += `  [${item.completed ? 'x' : ' '}] ${item.text}\n`;
+      });
+    }
+
+    if (fiveWhys.some(w => w.trim())) {
+      markdown += `\n--- 5 WHYS DRILL-DOWN ---\n`;
+      fiveWhys.forEach((why, i) => {
+        if (why.trim()) {
+          markdown += `  Why ${i + 1}: ${why}\n`;
+        }
+      });
+    }
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(markdown);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = markdown;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+      }
+      showToast("Copied Ishikawa Analysis to Clipboard!");
+    } catch (err) {
+      console.error("Copy failed:", err);
+      alert("Unable to copy automatically. Please copy from the screen.");
     }
   };
 
@@ -263,7 +283,7 @@ const App: React.FC = () => {
             resolve(blob);
           }, 'image/png');
         } catch (e) {
-          console.warn("Image capture blocked by browser security (Tainted Canvas).");
+          console.warn("Image capture blocked by browser security.");
           URL.revokeObjectURL(url);
           resolve(null);
         }
@@ -280,7 +300,6 @@ const App: React.FC = () => {
     const fishboneBlob = await getFishboneImageBlob();
     const fishboneUint8Array = fishboneBlob ? new Uint8Array(await fishboneBlob.arrayBuffer()) : null;
 
-    // 1. Fishbone Image
     const fishboneParagraphs = fishboneUint8Array ? [
       new Paragraph({
         children: [
@@ -302,7 +321,6 @@ const App: React.FC = () => {
       })
     ];
 
-    // 2. Checklist
     const checklistParagraphs = checklist.length > 0 ? checklist.map(item => (
       new Paragraph({
         children: [
@@ -313,7 +331,6 @@ const App: React.FC = () => {
       })
     )) : [new Paragraph({ children: [new TextRun({ text: "No verification tasks added.", italics: true, color: "94A3B8" })] })];
 
-    // 3. Five Whys
     const fiveWhysParagraphs = fiveWhys.map((why, idx) => (
       new Paragraph({
         children: [
@@ -325,7 +342,6 @@ const App: React.FC = () => {
       })
     ));
 
-    // 4. Causal Summary Rows by active framework categories
     const activeCategories = FRAMEWORK_CATEGORIES[framework].categories;
     const causalRows = activeCategories.map(cat => {
       const catCauses = causes.filter(c => c.category === cat);
@@ -480,7 +496,7 @@ const App: React.FC = () => {
   const activeFrameworkInfo = FRAMEWORK_CATEGORIES[framework];
 
   return (
-    <div className={`flex h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300 overflow-hidden print:overflow-visible print:h-auto print:block`}>
+    <div className={`flex h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300 overflow-hidden print:overflow-visible print:h-auto print:block relative`}>
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -488,6 +504,14 @@ const App: React.FC = () => {
         className="hidden" 
         accept=".json" 
       />
+
+      {/* Copy Notification Toast */}
+      {copyToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-emerald-600 text-white font-bold text-xs px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2 animate-bounce">
+          <i className="fa-solid fa-circle-check text-base"></i>
+          <span>{copyToast}</span>
+        </div>
+      )}
       
       {/* Sidebar Navigation */}
       <aside className={`no-print bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 flex flex-col ${isSidebarOpen ? 'w-80' : 'w-0'}`}>
@@ -577,15 +601,14 @@ const App: React.FC = () => {
             />
           </div>
 
-          {/* Gemini AI Root Cause Suggestion Button */}
+          {/* Quick Copy Action */}
           <div className="mb-6">
             <button
-              onClick={method === AnalysisMethod.FISHBONE ? handleAiSuggestCauses : handleAiSuggestFiveWhys}
-              disabled={isAiLoading}
+              onClick={copyToClipboard}
               className="w-full py-2.5 px-3 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-extrabold text-xs rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all flex items-center justify-center gap-2"
             >
-              <i className={`fa-solid ${isAiLoading ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'} text-amber-500`}></i>
-              <span>{isAiLoading ? 'Gemini Analyzing...' : 'AI Auto-Suggest Causes (Gemini)'}</span>
+              <i className="fa-solid fa-copy text-indigo-500"></i>
+              <span>Copy Ishikawa to Clipboard</span>
             </button>
           </div>
 
@@ -663,9 +686,18 @@ const App: React.FC = () => {
              
              <div className="h-5 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
 
-             <button onClick={() => setIsTemplateModalOpen(true)} className="text-[10px] font-bold px-3 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-1.5 uppercase tracking-wider">
-                <i className="fa-solid fa-bug"></i>
-                <span>Defect Presets</span>
+             <button 
+               onClick={copyToClipboard}
+               title="Copy to Clipboard" 
+               className="text-[10px] font-bold px-3 py-2 bg-indigo-50 dark:bg-indigo-900/40 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-300 rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-1.5 uppercase tracking-wider shadow-sm"
+             >
+                <i className="fa-solid fa-copy"></i>
+                <span>Copy</span>
+             </button>
+
+             <button onClick={() => setIsTemplateModalOpen(true)} className="text-[10px] font-bold px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5 uppercase tracking-wider">
+                <i className="fa-solid fa-bug text-indigo-500"></i>
+                <span>Presets</span>
              </button>
 
              <button onClick={() => fileInputRef.current?.click()} className="text-[10px] font-bold px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5 uppercase tracking-wider">
@@ -746,6 +778,7 @@ const App: React.FC = () => {
                   onDeleteCause={deleteCause} 
                   onEditCause={updateCauseText} 
                   onToggleWorkingOn={toggleWorkingOn} 
+                  onCopySummary={copyToClipboard}
                   theme={theme} 
                 />
               </div>
